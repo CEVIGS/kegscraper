@@ -5,7 +5,7 @@ requires = [req.strip() for req in open("requirements.txt").readlines()]
 
 setup(
     name='kegscraper',
-    version='v0.1.21',
+    version='v0.1.22',
     packages=['kegscraper'] +
              [f"kegscraper.{subdir}" for subdir in next(os.walk("kegscraper"))[1] if subdir != "__pycache__"],
     project_urls={
