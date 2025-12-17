@@ -105,17 +105,17 @@ class Session:
     @property
     def name(self):
         """
-        Fetch the student name (not username) from the deshboard page
+        Fetch the student name (not username) from the dashboard page
         """
         if self._name is None:
             text = self._sess.get("https://www.bromcomvle.com/Home/Dashboard").text
             soup = BeautifulSoup(text, "html.parser", parse_only=SoupStrainer("span"))
 
-            message = soup.find("span", {"id": "WelcomeMessage"})
+            message = soup.find("span", {"id": "UsernameLabel"})
             if message is None:
                 raise exceptions.NotFound(f"Could not find welcome message! Response: {text}")
 
-            self._name = commons.webscrape_section(message.text, "Hi ", ". Welcome Back!")
+            self._name = message.text.strip()
 
         return self._name
 
