@@ -2,11 +2,12 @@
 
 > The ultimate KEGS webscraping module
 
-[GitHub](https://github.com/BigPotatoPizzaHey/kegscraper) |
-[pypi](https://pypi.org/project/kegscraper) |
-[KEGS](https://www.kegs.org.uk/)
+[![KEGS](https://img.shields.io/badge/KEGS-website-a00)](https://www.kegs.org.uk/)
+[![GitHub](https://img.shields.io/badge/GitHub-CEVIGS/kegscraper-2a2f35)](https://github.com/CEVIGS/kegscraper)
+[![PyPi](https://shields.io/pypi/v/kegscraper)](https://pypi.org/project/kegscraper)
+[![Upload Python Package](https://github.com/CEVIGS/kegscraper/actions/workflows/python-publish.yml/badge.svg)](https://github.com/CEVIGS/kegscraper/actions/workflows/python-publish.yml)
 
-KEGScraper is a Python package which simplifies any interaction with [KEGS](https://kegs.org.uk/) and any
+Kegscraper is a Python package which simplifies any interaction with [KEGS](https://kegs.org.uk/) and any
 services used by KEGS.
 
 The module currently supports the given services:
