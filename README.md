@@ -1,4 +1,4 @@
-# KEGScraper
+# <img src="https://raw.githubusercontent.com/CEVIGS/kegscraper/refs/heads/main/logo.png" align="right" width=200> KEGScraper
 
 > The ultimate KEGS webscraping module
 
