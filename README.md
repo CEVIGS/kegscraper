@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/CEVIGS/kegscraper/refs/heads/main/logo.png" align="right" width=200> KEGScraper
+# <img src="https://raw.githubusercontent.com/CEVIGS/kegscraper/refs/heads/main/assets/logo.png" align="right" width=200> KEGScraper
 
 > The ultimate KEGS webscraping module
 
@@ -24,3 +24,5 @@ The module currently supports the given services:
 - [Submit issues on GitHub](https://github.com/BigPotatoPizzaHey/kegscraper/issues)
 - [Discuss the project on GitHub](https://github.com/BigPotatoPizzaHey/kegscraper/discussions)
 - This module is a **work in progress** and is not complete. Many more features will be added.
+
+</div>
