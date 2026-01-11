@@ -4,7 +4,7 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
-from typing import Any, Self
+from typing_extensions import Any, Self
 
 import dateparser
 from bs4 import PageElement, BeautifulSoup
@@ -24,11 +24,13 @@ class Event:
 
     _sess: session.Session = None
 
+
 @dataclass
 class Calendar:
     """
     An instance of a calendar widget that KEGSNet can give
     """
+
     events: list[Event] = field(default_factory=list)
 
     _sess: session.Session = None

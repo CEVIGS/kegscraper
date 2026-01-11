@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from typing import Any, Self
+from typing_extensions import Any, Self
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
@@ -53,12 +53,14 @@ class DigitalBook:
     # purchase_popup_title: dict[str, str]
 
     def __post_init__(self):
-        if not isinstance(self.subs_end_date, datetime) and self.subs_end_date is not None:
+        if (
+            not isinstance(self.subs_end_date, datetime)
+            and self.subs_end_date is not None
+        ):
             self.subs_end_date = dateparser.parse(str(self.subs_end_date))
 
     @classmethod
-    def from_kwargs(cls, **kwargs) -> Self:
-        ...
+    def from_kwargs(cls, **kwargs) -> Self: ...
 
     @property
     def url(self):
@@ -70,7 +72,7 @@ class DigitalBook:
         soup = BeautifulSoup(resp.text, "html.parser")
 
         data = None
-        to_find = '\n//<![CDATA[\n        window.authorAPI.setup('
+        to_find = "\n//<![CDATA[\n        window.authorAPI.setup("
         for script in soup.find_all("script"):
             if script.contents:
                 js = script.contents[0]
@@ -88,20 +90,20 @@ class DigitalBook:
 
         # remove index.html, add data.js instead
 
-        path = '/'.join(parsed.path.split('/')[:-1] + ["data.js"])
+        path = "/".join(parsed.path.split("/")[:-1] + ["data.js"])
 
         return str(urlunparse(parsed._replace(path=path)))
 
     @property
     def _datajs(self):
-        assert lxml # you need lxml to parse xml
+        assert lxml  # you need lxml to parse xml
 
         resp = self._sess.rq.get(self._datajs_url)
         js = resp.text.strip()
 
         assert js.startswith("ajaxData = {")
 
-        data: dict[str, str] = json.loads(js[len("ajaxData = "):-1])
+        data: dict[str, str] = json.loads(js[len("ajaxData = ") : -1])
 
         ret = {}
         for key, val in data.items():

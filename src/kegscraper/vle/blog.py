@@ -4,7 +4,7 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
-from typing import Any, Self
+from typing_extensions import Any, Self
 
 import dateparser
 from bs4 import PageElement, BeautifulSoup
@@ -16,6 +16,7 @@ from ..util import commons, exceptions
 @dataclass
 class External:
     """Represents an external blog or an external blog entry"""
+
     url: str = None
     name: str = None
     id: int = None
@@ -27,7 +28,7 @@ class External:
 class Comment:
     id: int = None
     content: BeautifulSoup = field(repr=False, default=None)
-    format: str = '0'  # Idk what this is
+    format: str = "0"  # Idk what this is
     created: datetime = None
     author: user.User = None
     deletable: bool = False
@@ -36,19 +37,20 @@ class Comment:
     _session: session.Session = field(repr=False, default=None)
 
     @classmethod
-    def from_json(cls, data: dict[str, str | bool], _entry: Entry, _session: session.Session) -> Self:
+    def from_json(
+        cls, data: dict[str, str | bool], _entry: Entry, _session: session.Session
+    ) -> Self:
         return cls(
             data.get("id"),
-            BeautifulSoup(data.get("content", ''), "html.parser"),
+            BeautifulSoup(data.get("content", ""), "html.parser"),
             data.get("format"),
             datetime.fromtimestamp(int(data.get("timecreated"))),
             _session.connect_partial_user(
-                id=int(data.get("userid")),
-                name=data.get("fullname")
+                id=int(data.get("userid")), name=data.get("fullname")
             ),
             data.get("delete"),
             _entry,
-            _session
+            _session,
         )
 
     @property
@@ -56,18 +58,20 @@ class Comment:
         return self.content.text
 
     def delete(self):
-        response =  self._session.rq.post("https://vle.kegs.org.uk/comment/comment_ajax.php",
-                              data={
-                                  "sesskey": self._session.sesskey,
-                                  "action": "delete",
-                                  "client_id": self._session.file_client_id,
-                                  "itemid": self._entry.id,
-                                  "area": "format_blog",
-                                  "courseid": 1,
-                                  "contextid": self._entry.context_id,
-                                  "component": "blog",
-                                  "commentid": self.id
-                              })
+        response = self._session.rq.post(
+            "https://vle.kegs.org.uk/comment/comment_ajax.php",
+            data={
+                "sesskey": self._session.sesskey,
+                "action": "delete",
+                "client_id": self._session.file_client_id,
+                "itemid": self._entry.id,
+                "area": "format_blog",
+                "courseid": 1,
+                "contextid": self._entry.context_id,
+                "component": "blog",
+                "commentid": self.id,
+            },
+        )
         if response:
             data = response.json()
             if data.get("error") == "Invalid comment ID":
@@ -75,7 +79,11 @@ class Comment:
             else:
                 return data
         else:
-            extra = f" This may be because you are not {self.author.name} ({self.author.id})" if self._session.user_id != self.author.id else ''
+            extra = (
+                f" This may be because you are not {self.author.name} ({self.author.id})"
+                if self._session.user_id != self.author.id
+                else ""
+            )
             warnings.warn(f"Possibly couldn't delete {self}.{extra}")
 
 
@@ -122,34 +130,35 @@ class Entry:
             date_modified=datetime.fromtimestamp(data["lastmodified"]),
             publishstate=data["publishstate"],
             content=BeautifulSoup(data["summary"], "html.parser"),
-            attachments=[file.File.from_json2(attch, _sess) for attch in data["attachmentfiles"]],
+            attachments=[
+                file.File.from_json2(attch, _sess) for attch in data["attachmentfiles"]
+            ],
             tags=[tag.Tag.from_json(td, _sess) for td in data["tags"]],
             external_blog=ext,
             external_blog_entry=ext_be,
         )
 
     def update_from_id(self):
-        text = self._session.rq.get("https://vle.kegs.org.uk/blog/index.php",
-                                    params={
-                                        "entryid": self.id
-                                    }).text
+        text = self._session.rq.get(
+            "https://vle.kegs.org.uk/blog/index.php", params={"entryid": self.id}
+        ).text
         soup = BeautifulSoup(text, "html.parser")
 
-        self.update_from_div(
-            soup.find("div", {"id": f"b{self.id}"})
-        )
+        self.update_from_div(soup.find("div", {"id": f"b{self.id}"}))
 
     def update_from_div(self, div: PageElement):
         if div is None:
             raise exceptions.NotFound(
-                f"BlogEntry #{self.id}, ({self}) does not seem to exist. It may have been deleted, or may never have existed, or you may be logged out.")
+                f"BlogEntry #{self.id}, ({self}) does not seem to exist. It may have been deleted, or may never have existed, or you may be logged out."
+            )
 
         header = div.find("div", {"class": "row header clearfix"})
         main = div.find("div", {"class": "row maincontent clearfix"})
 
         if header is None and main is None:
             raise exceptions.NotFound(
-                f"BlogEntry #{self.id}, ({self}) does not seem to exist. It may have been deleted, or may never have existed, or you may be logged out.")
+                f"BlogEntry #{self.id}, ({self}) does not seem to exist. It may have been deleted, or may never have existed, or you may be logged out."
+            )
 
         self.id = int(div["id"][1:])
 
@@ -161,7 +170,9 @@ class Entry:
 
         author_id = int(qparse["id"][0])
 
-        self.author = self._session.connect_partial_user(id=author_id, name=author_anchor.text)
+        self.author = self._session.connect_partial_user(
+            id=author_id, name=author_anchor.text
+        )
 
         date_str = author_anchor.next.next.text
         self.date_created = dateparser.parse(date_str)
@@ -173,7 +184,7 @@ class Entry:
                 self.external_blog = External(
                     external_anchor["href"],
                     external_anchor.text,
-                    _session=self._session
+                    _session=self._session,
                 )
 
         # Get actual blog content
@@ -182,8 +193,9 @@ class Entry:
 
         self.images = main.find("div", {"class": "attachedimages"})
 
-        self.content = main.find("div", {"class": "no-overflow"}) \
-            .find("div", {"class": "no-overflow"})
+        self.content = main.find("div", {"class": "no-overflow"}).find(
+            "div", {"class": "no-overflow"}
+        )
 
         external_div = main.find("div", {"class": "externalblog"})
         if external_div:
@@ -192,7 +204,7 @@ class Entry:
                 self.external_blog_entry = External(
                     external_anchor["href"],
                     external_anchor.text,
-                    _session=self._session
+                    _session=self._session,
                 )
 
         tag_list = main.find("div", {"class": "tag_list"})
@@ -221,19 +233,25 @@ class Entry:
             self.update_from_id()
 
         data_lst = []
-        for page, _ in zip(*commons.generate_page_range(limit, offset, items_per_page=999, starting_page=0)):
-            data_lst += (self._session.rq.post("https://vle.kegs.org.uk/comment/comment_ajax.php",
-                                               data={
-                                                   "sesskey": self._session.sesskey,
-                                                   "action": "get",
-                                                   "client_id": self._session.file_client_id,
-                                                   "itemid": self.id,
-                                                   "area": "format_blog",
-                                                   "courseid": "1",
-                                                   "contextid": self.context_id,
-                                                   "component": "blog",
-                                                   "page": page
-                                               }).json()["list"])
+        for page, _ in zip(
+            *commons.generate_page_range(
+                limit, offset, items_per_page=999, starting_page=0
+            )
+        ):
+            data_lst += self._session.rq.post(
+                "https://vle.kegs.org.uk/comment/comment_ajax.php",
+                data={
+                    "sesskey": self._session.sesskey,
+                    "action": "get",
+                    "client_id": self._session.file_client_id,
+                    "itemid": self.id,
+                    "area": "format_blog",
+                    "courseid": "1",
+                    "contextid": self.context_id,
+                    "component": "blog",
+                    "page": page,
+                },
+            ).json()["list"]
 
         return [Comment.from_json(data, self, self._session) for data in data_lst]
 
@@ -241,18 +259,20 @@ class Entry:
         if self.context_id is None:
             self.update_from_id()
 
-        response = self._session.rq.post("https://vle.kegs.org.uk/comment/comment_ajax.php",
-                                         data={
-                                             "sesskey": self._session.sesskey,
-                                             "action": "add",
-                                             "client_id": self._session.file_client_id,
-                                             "itemid": self.id,
-                                             "area": "format_blog",
-                                             "courseid": 1,
-                                             "contextid": self.context_id,
-                                             "component": "blog",
-                                             "content": content
-                                         })
+        response = self._session.rq.post(
+            "https://vle.kegs.org.uk/comment/comment_ajax.php",
+            data={
+                "sesskey": self._session.sesskey,
+                "action": "add",
+                "client_id": self._session.file_client_id,
+                "itemid": self.id,
+                "area": "format_blog",
+                "courseid": 1,
+                "contextid": self.context_id,
+                "component": "blog",
+                "content": content,
+            },
+        )
 
         ret = Comment.from_json(response.json(), self, self._session)
         return ret

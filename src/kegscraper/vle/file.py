@@ -1,13 +1,14 @@
 """
 File class
 """
+
 from __future__ import annotations
 
 import os.path
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Self
+from typing_extensions import Self
 
 from . import session
 from . import user as _user
@@ -18,6 +19,7 @@ class File:
     """
     Class representing both files and directories in kegsnet
     """
+
     name: str = None
     path: str = None
 
@@ -58,34 +60,37 @@ class File:
         """
         Deletes the file from the session's file manager
         """
-        self._session.rq.post("https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
-                              params={"action": "delete"},
-                              data={
-                                  "sesskey": self._session.sesskey,
-
-                                  "clientid": self._session.file_client_id,
-                                  "itemid": self._session.file_item_id,
-                                  "filename": self.name,
-                                  "filepath": self.path
-                              })
+        self._session.rq.post(
+            "https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
+            params={"action": "delete"},
+            data={
+                "sesskey": self._session.sesskey,
+                "clientid": self._session.file_client_id,
+                "itemid": self._session.file_item_id,
+                "filename": self.name,
+                "filepath": self.path,
+            },
+        )
         self._session.file_save_changes()
 
     @classmethod
     def from_json(cls, data: dict, _session: session.Session = None) -> Self:
         """Load a file from JSON data"""
-        return cls(name=data.get("filename"),
-                   path=data.get("filepath"),
-                   size=data.get("size"),
-                   author=data.get("author"),
-                   license=data.get("license"),
-                   mime=data.get("mimetype"),
-                   type=data.get("type"),
-                   url=data.get("url"),
-                   icon_url=data.get("icon"),
-                   datemodified=datetime.fromtimestamp(data.get("datemodified")),
-                   datecreated=datetime.fromtimestamp(data.get("datecreated")),
-                   user=_session.connected_user,
-                   _session=_session)
+        return cls(
+            name=data.get("filename"),
+            path=data.get("filepath"),
+            size=data.get("size"),
+            author=data.get("author"),
+            license=data.get("license"),
+            mime=data.get("mimetype"),
+            type=data.get("type"),
+            url=data.get("url"),
+            icon_url=data.get("icon"),
+            datemodified=datetime.fromtimestamp(data.get("datemodified")),
+            datecreated=datetime.fromtimestamp(data.get("datecreated")),
+            user=_session.connected_user,
+            _session=_session,
+        )
 
     @classmethod
     def from_json2(cls, data: dict, _sess: session.Session) -> Self:
@@ -99,7 +104,7 @@ class File:
             mime=data.get("mimetype"),
             type="file",
             datemodified=datetime.fromtimestamp(data.get("timemodified")),
-            _session=_sess
+            _session=_sess,
         )
 
     @property

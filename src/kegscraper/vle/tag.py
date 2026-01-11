@@ -1,12 +1,13 @@
 """
 Class representing tags accessible through here: https://vle.kegs.org.uk/tag/index.php?tag=woodlouse
 """
+
 from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
 from urllib.parse import urlparse, parse_qs
-from typing import Self
+from typing_extensions import Self
 
 import dateparser
 import requests
@@ -36,10 +37,10 @@ class Tag:
             flagged_inappropriate=bool(data["flag"]),
             id=data["id"],
             item_id=data["itemid"],
-            name=data["name"], # == rawname?
+            name=data["name"],  # == rawname?
             exists=True,
             # instance id, context id?
-            _session=_sess
+            _session=_sess,
         )
 
     @property
@@ -62,7 +63,7 @@ class Tag:
 
             mng_box = main.find("div", {"class": "tag-management-box"})
             tedit = mng_box.find("a", {"class": "edittag"})
-            href = tedit.attrs.get("href", '')
+            href = tedit.attrs.get("href", "")
             q_parse = parse_qs(urlparse(href).query)
             self.id = int(q_parse.get("id")[0])
 
@@ -75,17 +76,14 @@ class Tag:
             if related_tag_div:
                 for li in related_tag_div.find_all("li"):
                     href = li.find("a").attrs["href"]
-                    if href == '#':
+                    if href == "#":
                         continue
 
                     parsed = urlparse(href)
                     q_parse = parse_qs(parsed.query)
                     related_tag_name = q_parse["tag"][0]
                     self.related_tags.append(
-                        Tag(
-                            related_tag_name,
-                            _session=self._session
-                        )
+                        Tag(related_tag_name, _session=self._session)
                     )
 
     def update(self):
@@ -99,18 +97,21 @@ class Tag:
         users = []
 
         for page in commons.generate_page_range(limit, offset, 5, 0)[0]:
-            data = self._session.webservice("core_tag_get_tagindex", tagindex={
-                "tc": 1,
-                "tag": self.name,
-                "ta": 1,  # 1 = users, 3 = courses, 7 = blog posts.
-                "page": str(page)
-            })
+            data = self._session.webservice(
+                "core_tag_get_tagindex",
+                tagindex={
+                    "tc": 1,
+                    "tag": self.name,
+                    "ta": 1,  # 1 = users, 3 = courses, 7 = blog posts.
+                    "page": str(page),
+                },
+            )
 
             soup = BeautifulSoup(data["content"], "html.parser")
 
             lis = soup.find_all("li", {"class": "media"})
             if not lis:
-                break # if it is empty, don't need to make more webreqs
+                break  # if it is empty, don't need to make more webreqs
 
             for li in lis:
                 a = li.find("a")
@@ -125,7 +126,9 @@ class Tag:
                 body = li.find("div", {"class": "media-body"})
                 name = body.text.strip()
 
-                users.append(user.User(id=uid, name=name, image_url=src, _session=self._session))
+                users.append(
+                    user.User(id=uid, name=name, image_url=src, _session=self._session)
+                )
 
         return users
 
@@ -156,9 +159,9 @@ class Tag:
                 entry_id = int(q_parse["entryid"][0])
 
                 muted = body.find("div", {"class": "muted"})
-                split = muted.text.split(',')
+                split = muted.text.split(",")
                 author_name = split[0].strip()
-                date = dateparser.parse(','.join(split[1:]))
+                date = dateparser.parse(",".join(split[1:]))
 
                 author = user.User(id=uid, name=author_name, image_url=src)
 
@@ -168,13 +171,17 @@ class Tag:
                         subject=subject,
                         date_created=date,
                         author=author,
-                        _session=self._session
+                        _session=self._session,
                     )
                 )
 
         return entries
 
-    def edit(self, new_description: str | PageElement = None, related_tags: list[Tag | str] = None):
+    def edit(
+        self,
+        new_description: str | PageElement = None,
+        related_tags: list[Tag | str] = None,
+    ):
         if new_description is None:
             new_description = self.description
         if related_tags is None:
@@ -186,26 +193,36 @@ class Tag:
             # else:
             #     new_description = ''
 
-        related_tags = list(map(lambda x: x if isinstance(x, str) else x.name, related_tags))
+        related_tags = list(
+            map(lambda x: x if isinstance(x, str) else x.name, related_tags)
+        )
 
-        response = self._session.rq.get("https://vle.kegs.org.uk/tag/edit.php", params={"id": self.id})
+        response = self._session.rq.get(
+            "https://vle.kegs.org.uk/tag/edit.php", params={"id": self.id}
+        )
 
         soup = BeautifulSoup(response.text, "html.parser")
 
         # it appears that order matters??? Not sure
-        data = [
-                   ("id", self.id),
-                   ("returnurl", ''),
-                   ("sesskey", self._session.sesskey),
-                   ("_qf__tag_edit_form", 1),
-                   ("mform_isexpanded_id_tag", new_description),
-                   ("description_editor[text]", ''),
-                   ("description_editor[format]", 1),
-                   ("description_editor[itemid]", soup.find("input", {"name": "description_editor[itemid]"})),
-                   ("relatedtags", "_qf__force_multiselect_submission"),
-               ] + [("relatedtags[]", tagname) for tagname in related_tags] + [
-                   ("submitbutton", "Update"),
-               ]
+        data = (
+            [
+                ("id", self.id),
+                ("returnurl", ""),
+                ("sesskey", self._session.sesskey),
+                ("_qf__tag_edit_form", 1),
+                ("mform_isexpanded_id_tag", new_description),
+                ("description_editor[text]", ""),
+                ("description_editor[format]", 1),
+                (
+                    "description_editor[itemid]",
+                    soup.find("input", {"name": "description_editor[itemid]"}),
+                ),
+                ("relatedtags", "_qf__force_multiselect_submission"),
+            ]
+            + [("relatedtags[]", tagname) for tagname in related_tags]
+            + [
+                ("submitbutton", "Update"),
+            ]
+        )
 
-        return self._session.rq.post("https://vle.kegs.org.uk/tag/edit.php",
-                                     data=data)
+        return self._session.rq.post("https://vle.kegs.org.uk/tag/edit.php", data=data)
