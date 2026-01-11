@@ -1,0 +1,38 @@
+[project]
+name = "kegscraper"
+version = "v0.1.24"
+description = "The ultimate KEGS webscraping module"
+readme = "README.md"
+license = "Unlicense"
+authors = [
+    { name = "BigPotatoPizzaHey", email = "poo@gmail.com" }
+]
+requires-python = ">=3.10.11"
+dependencies = [
+    "beautifulsoup4~=4.12.3",
+    "bs4~=0.0.2",
+    "dateparser~=1.2.0",
+    "lxml~=5.4.0",
+    "pypdf~=5.1.0",
+    "pyperclip~=1.9.0",
+    "requests~=2.32.3",
+    "setuptools~=75.6.0",
+    "typing-extensions~=4.13.2",
+]
+
+# [project.scripts]
+# kegs = "kegscraper:main"
+
+[project.urls]
+Homepage = "https://kegs.org.uk/"
+Source = "https://github.com/BigPotatoPizzaHey/kegscraper"
+Documentation = "https://github.com/BigPotatoPizzaHey/kegscraper/wiki"
+
+[project.optional-dependencies]
+all = [
+    "playwright>=1.57.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
