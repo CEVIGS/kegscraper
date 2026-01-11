@@ -16,4 +16,4 @@ jobs:
     - name: Publish package
       run: |
         uv build
-        uv pushlish --token ${{ secrets.PYPI_API_TOKEN}}
+        uv publish --token ${{ secrets.PYPI_API_TOKEN}}
