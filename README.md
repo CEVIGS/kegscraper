@@ -12,11 +12,14 @@ services used by KEGS.
 
 The module currently supports the given services:
 
+- activelearn
 - [The main website](https://kegs.org.uk/)
 - [Bromcom](https://bromcomvle.com/)
 - [KEGS IT](https://it.kegs.org.uk/)
+- kerboodle
 - [KEGSnet (moodle)](https://vle.kegs.org.uk/)
 - [The Oliver library system](https://kegs.oliverasp.co.uk/)
+- papercut mf (only accessible on the school network)
 
 ---
 
