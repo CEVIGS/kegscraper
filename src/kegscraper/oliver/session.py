@@ -2,12 +2,10 @@ import pprint
 import httpx
 
 from bs4 import BeautifulSoup
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes
 
-from .utils import api_fetch
 from kegscraper.util.commons import eval_inputs, consume_json
 
 @dataclass
@@ -43,10 +41,10 @@ def login(username: str, password: str):
             break
 
     assert data is not None, "Could not find login data"
-    assert isinstance(data, dict)
+    assert isinstance(data, dict), f"Unknown data: {data}"
 
-    corporation = inputs["corporationAlias"]
-    login_dialog = data["loginDialog"]
+    corporation: str = inputs["corporationAlias"]
+    login_dialog: dict[str, str] = data["loginDialog"]
     pkm: str = login_dialog["publicKeyModulus"]
     pke: str = login_dialog["publicKeyExponent"]
     sid: str = login_dialog["sessionId"]
@@ -60,7 +58,6 @@ def login(username: str, password: str):
         "j_password": jpass,
         "j_username": username
     })
-
     
     return Session(
         rq=client
@@ -70,9 +67,7 @@ def login(username: str, password: str):
 def oliver_rsa(pkm: str, pke: str, sid: str, password: str) -> bytes:
     n = int(pkm, 16)
     e = int(pke, 16)
-    pn = rsa.RSAPublicNumbers(
-        e, n
-    )
+    pn = rsa.RSAPublicNumbers(e, n)
     pubkey = pn.public_key()
     return pubkey.encrypt((sid + password).encode("utf-8"),
                           padding.PKCS1v15()
