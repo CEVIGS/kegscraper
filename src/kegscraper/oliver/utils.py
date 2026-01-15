@@ -1,13 +1,11 @@
 import requests
+import httpx
 from bs4 import BeautifulSoup
 
 from ..util import commons
 
-def api_fetch(url: str, rq: requests.Session = None):
+def api_fetch(url: str, rq: httpx.Client):
     """Make an api call to the oliver library api."""
-
-    if rq is None:
-        rq = commons.REQ
 
     url = f"https://kegs.oliverasp.co.uk/library/home/api/{url}"
     # For some reason it seems that it provides us with some query params then redirects us

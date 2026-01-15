@@ -2,3 +2,4 @@
 dist/
 .env
 */__pycache__
+tests/local_tests
