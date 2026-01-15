@@ -13,15 +13,17 @@ class Session:
     rq: httpx.Client
 
     def __post_init__(self):
-        resp = self.rq.get("https://kegs.oliverasp.co.uk/library/home/api/borrower/details")
-        # TODO: remove this when we are 100% that auth is working.
-        pprint.pp(resp.json())
-
+        resp = self.rq.post("https://kegs.oliverasp.co.uk/library/home/api/borrower/details", headers={
+            "type": "LayoutMetaData"
+        })
+        data = resp.json()
+        print(data)
+        print(len(data))
 
 def login(username: str, password: str):
-    client = httpx.Client(headers={
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
-    })
+    client = httpx.Client(
+        headers={}  # add user agent here if you want
+    )
 
     resp = client.get("https://kegs.oliverasp.co.uk/library/home/news")
     soup = BeautifulSoup(resp.text, "html.parser")
