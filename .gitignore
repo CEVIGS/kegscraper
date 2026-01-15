@@ -1,5 +1,5 @@
 .venv/
 dist/
 .env
-*/__pycache__
+**/__pycache__
 tests/local_tests
