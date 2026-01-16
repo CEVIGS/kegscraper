@@ -1,4 +1,3 @@
-import pprint
 import httpx
 
 from bs4 import BeautifulSoup
@@ -11,14 +10,8 @@ from kegscraper.util.commons import eval_inputs, consume_json
 @dataclass
 class Session:
     rq: httpx.Client
-
-    def __post_init__(self):
-        resp = self.rq.post("https://kegs.oliverasp.co.uk/library/home/api/borrower/details", headers={
-            "type": "LayoutMetaData"
-        })
-        data = resp.json()
-        print(data)
-        print(len(data))
+    username: str
+       
 
 def login(username: str, password: str):
     client = httpx.Client(
@@ -62,7 +55,8 @@ def login(username: str, password: str):
     })
     
     return Session(
-        rq=client
+        rq=client,
+        username=username
     )
 
 
