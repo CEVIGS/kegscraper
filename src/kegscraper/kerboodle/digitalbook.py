@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from typing_extensions import Any, Self
+from typing_extensions import Any, Self, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
@@ -19,26 +19,27 @@ from ..util import commons
 @dataclass
 @commons.with_kwargs
 class DigitalBook:
-    id: int = None
-    name: str = None
+    _sess: session.Session = field(repr=False)
 
-    published: bool = field(repr=False, default=None)
-    is_new: bool = field(repr=False, default=None)
-    is_updated: bool = field(repr=False, default=None)
+    id: Optional[int] = None
+    name: Optional[str] = None
 
-    image_src: str = field(repr=False, default=None)
-    content_object_link: str = field(repr=False, default=None)
+    published: Optional[bool] = field(repr=False, default=None)
+    is_new: Optional[bool] = field(repr=False, default=None)
+    is_updated: Optional[bool] = field(repr=False, default=None)
 
-    launcher: str = field(repr=False, default=None)
+    image_src: Optional[str] = field(repr=False, default=None)
+    content_object_link: Optional[str] = field(repr=False, default=None)
+
+    launcher: Optional[str] = field(repr=False, default=None)
     # image_class: str
 
-    purchase_url: dict[str, str] = field(repr=False, default=None)
-    available: dict[str, str] = field(repr=False, default=None)
-    purchased: dict[str, str] = field(repr=False, default=None)
-    subs_end_date: datetime = field(repr=False, default=None)
+    purchase_url: dict[str, str] = field(repr=False, default_factory=dict)
+    available: dict[str, str] = field(repr=False, default_factory=dict)
+    purchased: dict[str, str] = field(repr=False, default_factory=dict)
+    subs_end_date: Optional[datetime] = field(repr=False, default=None)
 
-    course: course.Course = field(repr=False, default=None)
-    _sess: session.Session = field(repr=False, default=None)
+    course: Optional[course.Course] = field(repr=False, default=None)
 
     # engine: str
     # purchase_link: str
@@ -57,18 +58,21 @@ class DigitalBook:
             not isinstance(self.subs_end_date, datetime)
             and self.subs_end_date is not None
         ):
-            self.subs_end_date = dateparser.parse(str(self.subs_end_date))
+            dt = dateparser.parse(str(self.subs_end_date))
+            if dt is not None:
+                self.subs_end_date = dt
 
     @classmethod
     def from_kwargs(cls, **kwargs) -> Self: ...
 
     @property
     def url(self):
+        assert self.course is not None
         return f"https://www.kerboodle.com/api/courses/{self.course.id}/interactives/{self.id}.html"
 
     @property
-    def _interactive_html_data(self) -> dict | None:
-        resp = self._sess.rq.get(self.url)
+    async def _interactive_html_data(self) -> dict | None:
+        resp = await self._sess.rq.get(self.url)
         soup = BeautifulSoup(resp.text, "html.parser")
 
         data = None
@@ -81,11 +85,14 @@ class DigitalBook:
                     data = commons.consume_json(js, i + len(to_find))
                     break
 
+        assert isinstance(data, dict)
         return data
 
     @property
-    def _datajs_url(self) -> str:
-        url = self._interactive_html_data["url"]
+    async def _datajs_url(self) -> str:
+        ihd = await self._interactive_html_data
+        assert ihd is not None
+        url = ihd["url"]
         parsed = urlparse(url)
 
         # remove index.html, add data.js instead
@@ -95,10 +102,10 @@ class DigitalBook:
         return str(urlunparse(parsed._replace(path=path)))
 
     @property
-    def _datajs(self):
+    async def _datajs(self):
         assert lxml  # you need lxml to parse xml
 
-        resp = self._sess.rq.get(self._datajs_url)
+        resp = await self._sess.rq.get(await self._datajs_url)
         js = resp.text.strip()
 
         assert js.startswith("ajaxData = {")
@@ -116,20 +123,21 @@ class DigitalBook:
         return ret
 
     @property
-    def _catxml(self) -> BeautifulSoup:
+    async def _catxml(self) -> BeautifulSoup:
         """
         :return: the other xml soup in datajs
         """
-        xmldict = self._datajs
+        xmldict = await self._datajs
 
         return xmldict[next(filter(lambda x: x != "LearningObjectInfo.xml", xmldict))]
 
     @property
-    def page_urls(self) -> list[str]:
-        soup = self._catxml
+    async def page_urls(self) -> list[str]:
+        soup = await self._catxml
 
-        ret = []
+        ret: list[str] = []
         pages = soup.find("pages")
+        assert pages is not None
         for page in pages.find_all("page"):
             url = page.get("url")
             if url.startswith("//"):
