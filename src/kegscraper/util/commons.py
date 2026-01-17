@@ -2,7 +2,7 @@
 Utility functions/variables used commonly across the module
 """
 import mimetypes
-
+import pyrfc6266
 import json
 import httpx
 import string
@@ -327,8 +327,9 @@ def with_kwargs(cls):
 
 def resp_to_file(resp: httpx.Response, default_ext: str | T = None) -> tuple[
         bytes, str | T]:
-    if "filename" in resp.headers:
-        ext = '.' + resp.headers["filename"].split('.')[-1]
+    if "content-disposition" in resp.headers:
+        filename = pyrfc6266.parse_filename(resp.headers["content-disposition"])
+        ext = '.' + filename.split('.')[-1]
     elif "Content-Type" in resp.headers:
         ext = mimetypes.guess_extension(resp.headers["Content-Type"])
 
