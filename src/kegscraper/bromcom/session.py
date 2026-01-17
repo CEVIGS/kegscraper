@@ -1,48 +1,39 @@
 """
 Session class and login function. (most bromcom functionality)
 """
-
 from __future__ import annotations
 
-from base64 import b64decode
-
 import dateparser
-import requests
+import asyncio
+import httpx
 import mimetypes
-from datetime import datetime, timedelta
-
-from bs4 import BeautifulSoup, SoupStrainer
-
-from ..util import exceptions, commons
-
 import atexit
 
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing_extensions import Optional
+from base64 import b64decode
+from bs4 import BeautifulSoup, SoupStrainer
+
 from . import timetable
+from ..util import exceptions, commons
 
-
+@dataclass
 class Session:
-    def __init__(self, _sess: requests.Session):
-        self._sess: requests.Session = _sess
-
-        self._name: str | None = None
-
-        self._timetable_weeks: list[timetable.WeekDate] | None = None
-
-        atexit.register(self.logout)
+    rq: httpx.AsyncClient
+    username: str
+    _name: Optional[str] = None
+    _timetable_weeks: Optional[list[timetable.WeekDate]] = None
 
     def __repr__(self):
-        return f"Session for {self.name}"
+        return f"Session for {self.username}"
 
-    def logout(self) -> requests.Response:
+    async def logout(self) -> httpx.Response:
         """
         Send a logout request to bromcom. After this is called, the session will no longer function.
         :return: The response from bromcom
         """
-        resp = self._sess.get("https://www.bromcomvle.com/Auth/Logout")
-        print(f"Logged out with status code: {resp.status_code}")
-        self._sess = None
-
-        return resp
+        return await self.rq.get("https://www.bromcomvle.com/Auth/Logout")
 
     # --- Account settings ---
     def set_color_preference(self, *, name: str = "Theme", value: str = "default"):
@@ -103,19 +94,19 @@ class Session:
         return data
 
     @property
-    def name(self):
+    async def name(self):
         """
         Fetch the student name (not username) from the dashboard page
         """
         if self._name is None:
-            text = self._sess.get("https://www.bromcomvle.com/Home/Dashboard").text
+            text = (await self.rq.get("https://www.bromcomvle.com/Home/Dashboard")).text
             soup = BeautifulSoup(text, "html.parser", parse_only=SoupStrainer("span"))
 
             message = soup.find("span", {"id": "UsernameLabel"})
             if message is None:
                 raise exceptions.NotFound(f"Could not find welcome message! Response: {text}")
 
-            self._name = message.text.strip()
+            self._name: str = message.text.strip()
 
         return self._name
 
@@ -402,7 +393,7 @@ class Session:
         return self._sess.get("https://www.bromcomvle.com/Home/GetHomeworkWidgetData").json()
 
 
-def login(school_id: int, username: str, password: str, remember_me: bool = True) -> Session:
+async def login(school_id: int, username: str, password: str, remember_me: bool = True, kwargs: Optional[dict] = None) -> Session:
     """
     Login to bromcom with a school id, username and password.
     :param school_id: KEGS school id (you provide it)
@@ -411,38 +402,27 @@ def login(school_id: int, username: str, password: str, remember_me: bool = True
     :param remember_me: Option to 'remember me.' Defaults to True
     :return: A session representing your login
     """
-    _sess = requests.Session()
-    _sess.headers = commons.headers.copy()
+    if kwargs is None:
+        kwargs = {}
+    rq = httpx.AsyncClient(headers=commons.headers.copy(), **kwargs)
+    inputs = commons.eval_inputs(BeautifulSoup(
+        (await rq.get("https://www.bromcomvle.com/")).text,
+        "html.parser"
+    ))
 
-    text = _sess.get("https://www.bromcomvle.com/").text
-    soup = BeautifulSoup(text, "html.parser", parse_only=SoupStrainer("input"))
+    inputs["schoolid"] = school_id
+    inputs["username"] = username
+    inputs["password"] = password
+    inputs["rememberme"] = str(remember_me)
+    resp = await rq.post("https://www.bromcomvle.com/", data=inputs, follow_redirects=True)
 
-    rvinp = soup.find("input", {"name": "__RequestVerificationToken"})
-    if rvinp is None:
-        ptfy = BeautifulSoup(text, "html.parser").prettify()
-        raise exceptions.NotFound(f"Could not find rv token; response text: {ptfy}")
-
-    rvtoken = rvinp.attrs.get("value")
-
-    response = _sess.post("https://www.bromcomvle.com/",
-                          data={
-                              "SpaceID": '',
-
-                              "schoolid": school_id,
-                              "username": username,
-                              "password": password,
-
-                              "__RequestVerificationToken": rvtoken,
-                              "rememberme": str(remember_me).lower()
-                          })
-
-    if response.status_code != 200:
-        if response.status_code == 500:
+    if resp.status_code != 200:
+        if resp.status_code == 500:
             raise exceptions.ServerError(
                 f"The bromcom server experienced some error when handling the login request (ERR 500). Response content: {response.content}")
         else:
             raise exceptions.Unauthorised(
-                f"The provided details for {username} may be invalid. Status code: {response.status_code} "
-                f"Response content: {response.content}")
+                f"The provided details for {username} may be invalid. Status code: {resp.status_code} "
+                f"Response content: {resp.content}")
 
-    return Session(_sess)
+    return Session(rq=rq, username=username)
