@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import re
 import atexit
+from typing_extensions import Optional
 import warnings
 import httpx
 import asyncio
@@ -78,12 +79,12 @@ class Session:
 
         return self._sesskey
 
-    def connect_notifications(
+    async def connect_notifications(
         self,
         *,
         limit: int = 20,
         offset: int = 0,
-        user_id: int = None,
+        user_id: Optional[int] = None,
         newestfirst: bool = True,
     ) -> tuple[int, list[dict[str, Any]]]:
         """
@@ -93,7 +94,7 @@ class Session:
         if user_id is None:
             user_id = self.user_id
 
-        data = self.webservice(
+        data = await self.webservice(
             "message_popup_get_popup_notifications",
             limit=limit,
             offset=offset,
@@ -101,6 +102,7 @@ class Session:
             newestfirst=int(newestfirst),
         )
 
+        assert isinstance(data, dict)
         return data["unreadcount"], data["notifications"]
 
     @property
@@ -532,17 +534,19 @@ class Session:
         )
         return [course.Course.from_json(course_data) for course_data in data]
 
-    def webservice(self, name, /, **args):
+    async def webservice(self, name, /, **args):
         """
         Directly interact with the webservice api
         :param name:methodname of webservice api, e.g. core_course_search_courses
         :param args:args to send to webservice api
         :return:
         """
-        data: list = self.rq.post(
-            "https://vle.kegs.org.uk/lib/ajax/service.php",
-            params={"sesskey": self.sesskey},  # "info": name
-            json=[{"methodname": name, "args": args}],
+        data = (
+            await self.rq.post(
+                "https://vle.kegs.org.uk/lib/ajax/service.php",
+                params={"sesskey": await self.sesskey},  # "info": name
+                json=[{"methodname": name, "args": args}],
+            )
         ).json()
 
         skip = False
@@ -550,7 +554,7 @@ class Session:
             skip = "error" in data
 
         if not skip:
-            data: dict[str, dict | str | int | float | None | bool | list] = data[0]
+            data = data[0]
 
         if data["error"]:
             try:
