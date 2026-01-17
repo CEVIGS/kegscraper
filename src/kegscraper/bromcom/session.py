@@ -26,6 +26,7 @@ class Session:
     _timetable_weeks: Optional[list[timetable.WeekDate]] = None
 
     def __repr__(self):
+        # repr can't be async. this is problematic
         return f"Session for {self.username}"
 
     async def logout(self) -> httpx.Response:
@@ -47,20 +48,14 @@ class Session:
                                })
 
     @property
-    def email(self):
+    async def email(self):
         """
         Fetch the user email from the account settings page
         """
-        text = self._sess.get("https://www.bromcomvle.com/AccountSettings").text
-        soup = BeautifulSoup(text, "html.parser")
+        resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings")
+        inps = commons.eval_inputs(BeautifulSoup(resp.text, "html.parser"))
 
-        email_inp = soup.find("input", {
-            "class": "form-control",
-            "id": "EmailAddress",
-            "name": "EmailAddress"
-        })
-
-        return email_inp["value"]
+        return inps["EmailAddress"]
 
     @property
     def school_contact_details(self) -> dict:
