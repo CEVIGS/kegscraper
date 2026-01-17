@@ -4,7 +4,7 @@ import os
 
 def test_b_timetable():
     sess = bromcom.login(
-        int(os.environ["BID"]), os.environ["BUSER"], os.environ["BPASS"]
+        int(os.environ["BSCRT_ID"]), os.environ["BSCRT_UN"], os.environ["BSCRT_PW"]
     )
 
     print(sess.email)
