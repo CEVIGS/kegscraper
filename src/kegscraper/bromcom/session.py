@@ -115,20 +115,12 @@ class Session:
         return commons.resp_to_file(resp)
 
     @property
-    async def school_photo(self) -> bytes:
+    async def school_photo(self) -> tuple[bytes, str]:
         """
         Fetch the school's corresponding photo as bytes
         """
         resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto")
         return commons.resp_to_file(resp)
-
-    @property
-    def school_photo_ext(self):
-        """
-        Fetch the image format of the school picture
-        """
-        response = self._sess.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto")
-        return mimetypes.guess_extension(response.headers.get("Content-Type", "image/Jpeg"))
 
     # --- Timetable methods ---
     def get_timetable_list(self, start_date: datetime | timetable.WeekDate = None,
