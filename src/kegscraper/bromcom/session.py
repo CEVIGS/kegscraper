@@ -4,24 +4,24 @@ Session class and login function. (most bromcom functionality)
 from __future__ import annotations
 
 import dateparser
-import asyncio
 import httpx
 import mimetypes
-import atexit
 
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from typing_extensions import Optional
+from typing_extensions import Optional, Any
 from base64 import b64decode
 from bs4 import BeautifulSoup, SoupStrainer
 
 from . import timetable
 from ..util import exceptions, commons
 
+
 @dataclass
 class Session:
     rq: httpx.AsyncClient
     username: str
+
     _name: Optional[str] = None
     _timetable_weeks: Optional[list[timetable.WeekDate]] = None
 
@@ -48,22 +48,21 @@ class Session:
                                })
 
     @property
-    async def email(self):
+    async def email(self) -> Optional[str]:
         """
         Fetch the user email from the account settings page
         """
         resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings")
         inps = commons.eval_inputs(BeautifulSoup(resp.text, "html.parser"))
-
-        return inps["EmailAddress"]
+        return inps.get("EmailAddress")
 
     @property
-    def school_contact_details(self) -> dict:
+    async def school_contact_details(self) -> dict[str, str | Any]:
         """
         Fetch the school contact details as a key:value table from the hidden drop-down menu
         """
-        text = self._sess.get("https://www.bromcomvle.com/Home/Dashboard").text
-        soup = BeautifulSoup(text, "html.parser")
+        resp = await self.rq.get("https://www.bromcomvle.com/Home/Dashboard")
+        soup = BeautifulSoup(resp.text, "html.parser")
 
         conn_anchor = soup.find("a", {"title": "Contact School"})
         table = conn_anchor.parent.find("table")
@@ -122,7 +121,8 @@ class Session:
         """
         Fetch the school's corresponding photo as bytes
         """
-        return self._sess.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto").content
+        resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto")
+        return commons.resp_to_file(resp)
 
     @property
     def school_photo_ext(self):

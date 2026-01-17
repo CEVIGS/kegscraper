@@ -1,13 +1,15 @@
 """
 Utility functions/variables used commonly across the module
 """
+import mimetypes
 
 import json
+import httpx
 import string
 import warnings
 import copy
 from datetime import datetime
-from typing import Any, Final
+from typing import Any, Final, TypeVar
 from inspect import signature
 
 import requests
@@ -16,6 +18,7 @@ from bs4 import BeautifulSoup
 from . import exceptions
 
 REQ: Final[requests.Session] = requests.Session()
+T = TypeVar('T')
 
 DIGITS: Final = tuple("0123456789")
 
@@ -320,3 +323,13 @@ def with_kwargs(cls):
 
     cls.from_kwargs = from_kwargs
     return cls
+
+
+def resp_to_file(resp: httpx.Response, default_ext: str | T = None) -> tuple[
+        bytes, str | T]:
+    if "filename" in resp.headers:
+        ext = '.' + resp.headers["filename"].split('.')[-1]
+    elif "Content-Type" in resp.headers:
+        ext = mimetypes.guess_extension(resp.headers["Content-Type"])
+
+    return resp.content, ext if ext is not None else default_ext
