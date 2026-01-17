@@ -89,19 +89,21 @@ class Session:
         return data
 
     @property
-    async def name(self):
+    async def name(self) -> Optional[str]:
         """
         Fetch the student name (not username) from the dashboard page
         """
         if self._name is None:
-            text = (await self.rq.get("https://www.bromcomvle.com/Home/Dashboard")).text
-            soup = BeautifulSoup(text, "html.parser", parse_only=SoupStrainer("span"))
+            resp = await self.rq.get("https://www.bromcomvle.com/Home/Dashboard")
+            soup = BeautifulSoup(resp.text, "html.parser", parse_only=SoupStrainer("span"))
 
             message = soup.find("span", {"id": "UsernameLabel"})
             if message is None:
-                raise exceptions.NotFound(f"Could not find welcome message! Response: {text}")
+                raise exceptions.NotFound(f"Could not find welcome message! Response: {resp.text}")
 
             self._name: str = message.text.strip()
+            if not isinstance(self._name, str):
+                self._name = None
 
         return self._name
 
