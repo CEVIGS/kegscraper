@@ -14,6 +14,5 @@ __all__ = (
     "vle",
     "kerboodle",
     "activelearn",
-    "ms365",
 )
 from .util import exceptions
