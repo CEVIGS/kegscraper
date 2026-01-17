@@ -37,11 +37,13 @@ class Session:
         return await self.rq.get("https://www.bromcomvle.com/Auth/Logout")
 
     # --- Account settings ---
-    def set_color_preference(self, *, name: str = "Theme", value: str = "default"):
+    async def set_color_preference(
+        self, *, name: str = "Theme", value: str = "default"
+    ):
         """
         Set a color preference request to bromcom. Might not work yet
         """
-        return self._sess.post(
+        return await self.rq.post(
             "https://www.bromcomvle.com/AccountSettings/SaveColorPreference",
             json={"Name": name, "Value": value},
         )
@@ -64,6 +66,7 @@ class Session:
         soup = BeautifulSoup(resp.text, "html.parser")
 
         conn_anchor = soup.find("a", {"title": "Contact School"})
+        assert conn_anchor is not None
         table = conn_anchor.parent.find("table")
 
         data = {}
@@ -117,18 +120,17 @@ class Session:
         resp = await self.rq.get(
             "https://www.bromcomvle.com/AccountSettings/GetPersonPhoto"
         )
-        return commons.resp_to_file(resp)
+        return commons.resp_to_file(resp, ".jpg")
 
     @property
     async def school_photo(self) -> tuple[bytes, str]:
         """
         Fetch the school's corresponding photo as bytes
         """
-        r: str = None
         resp = await self.rq.get(
             "https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto"
         )
-        return commons.resp_to_file(resp)
+        return commons.resp_to_file(resp, ".jpg")
 
     # --- Timetable methods ---
     async def get_timetable_list(
@@ -352,63 +354,68 @@ class Session:
     # --- Reports data ---
 
     @property
-    def reports_data(self) -> dict[str, list[dict[str, str]]]:
+    async def reports_data(self) -> dict[str, list[dict[str, str]]]:
         """
         Fetch the report list (needs to be parsed)
         :return: A list of dictionaries representing reports. The filePath attribute can be used in the get_report method to fetch the report pdf as bytes
         """
         # Parse this later
-        return self._sess.get(
-            "https://www.bromcomvle.com/Home/GetReportsWidgetData"
+        return (
+            await self.rq.get("https://www.bromcomvle.com/Home/GetReportsWidgetData")
         ).json()
 
-    def get_report(self, filepath: str) -> bytes:
+    async def get_report(
+        self, filepath: str
+    ) -> bytes:  # not possible to provide fileext because the endpoint is JSON
         """
         Get the report with the given 'filepath' as bytes
         :param filepath: The filePath attribute in the report data
         :return: The report data as bytes
         """
         # Get the data encoded in b64 encoded in JSON. Weird.
-        data = self._sess.get(
-            "https://www.bromcomvle.com/Report/GetReport", params={"filePath": filepath}
-        ).json()
+        resp = await self.rq.get(
+            "https://www.bromcomvle.com/Report/GetReport",
+            params={"filePath": filepath},
+        )
 
-        return b64decode(data)
+        return b64decode(resp.json())
 
     # --- Exam data ---
 
     @property
-    def exam_data(self) -> list[dict[str, str]]:
+    async def exam_data(self) -> list[dict[str, str]]:
         """
         Fetch the exam data from the widget api
         :return:
         """
         # Parse this
-        return self._sess.get(
-            "https://www.bromcomvle.com/Home/GetExamResultsWidgetData"
+        return (
+            await self.rq.get(
+                "https://www.bromcomvle.com/Home/GetExamResultsWidgetData"
+            )
         ).json()
 
     # --- Bookmarks data ---
     @property
-    def bookmarks_data(self) -> list[dict]:
+    async def bookmarks_data(self) -> list[dict]:
         """
         Get the bookmarks list as a list of dictionaries (needs to be parsed)
         :return: list of dictionaries, each is a bookmark
         """
         # Parse this
-        return self._sess.get(
-            "https://www.bromcomvle.com/Home/GetBookmarksWidgetData"
+        return (
+            await self.rq.get("https://www.bromcomvle.com/Home/GetBookmarksWidgetData")
         ).json()
 
     # --- Homework data ---
     @property
-    def homework_data(self) -> list:
+    async def homework_data(self) -> list:
         """
-        Fetch homework data using the widget api. I have no homework so I am unable to parse this
+        Fetch homework data using the widget api. I have no homework here so I am unable to parse this
         :return: A list of something
         """
-        return self._sess.get(
-            "https://www.bromcomvle.com/Home/GetHomeworkWidgetData"
+        return (
+            await self.rq.get("https://www.bromcomvle.com/Home/GetHomeworkWidgetData")
         ).json()
 
 

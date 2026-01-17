@@ -27,7 +27,16 @@ async def test_b_timetable():
     # pprint(await sess.get_weeks_a_b(5))
     # pprint(await sess.get_mode_timetables())
     # print(await sess.present_late_ratio)
-    print(await sess.attendance_status)
+    # print(await sess.attendance_status)
+    # data = await sess.reports_data
+    # for report in data["reportsList"]:
+    #     fp = report["filePath"]
+    #     contents = await sess.get_report(fp)
+    #     with open(f"{report['fileName']}.{report['fileExtension']}", "wb") as f:
+    #         f.write(contents)
+    #
+    # print(await sess.exam_data)
+    print(await sess.bookmarks_data)
 
 
 if __name__ == "__main__":
