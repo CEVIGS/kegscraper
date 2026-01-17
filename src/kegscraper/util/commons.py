@@ -1,7 +1,9 @@
 """
 Utility functions/variables used commonly across the module
 """
+
 import mimetypes
+from typing_extensions import Callable
 import pyrfc6266
 import json
 import httpx
@@ -18,7 +20,7 @@ from bs4 import BeautifulSoup
 from . import exceptions
 
 REQ: Final[requests.Session] = requests.Session()
-T = TypeVar('T')
+T = TypeVar("T")
 
 DIGITS: Final = tuple("0123456789")
 
@@ -28,14 +30,18 @@ headers = {
 }
 
 
-def webscrape_value(raw, text_before, text_after, cls: type = str, i1: int = 1, i2: int = 0) -> str | Any:
-    return cls(
-        raw.split(text_before)[i1] \
-            .split(text_after)[i2]
-    )
+def webscrape_value(
+    raw, text_before, text_after, cls: type = str, i1: int = 1, i2: int = 0
+) -> str | Any:
+    return cls(raw.split(text_before)[i1].split(text_after)[i2])
 
 
-def webscrape_section(raw: str, before: str | int = '', after: str | int = '', cls: type = str) -> str | Any:
+def webscrape_section(
+    raw: str,
+    before: str | int = "",
+    after: str | int = "",
+    cls: Callable[..., T] = str,
+) -> T:
     def _toint(val: str | int) -> int:
         return val if isinstance(val, int) else len(val)
 
@@ -49,17 +55,17 @@ def webscrape_section(raw: str, before: str | int = '', after: str | int = '', c
 
 
 def _read_json_number(_string: str) -> float | int:
-    ret = ''
+    ret = ""
 
-    minus = _string[0] == '-'
+    minus = _string[0] == "-"
     if minus:
-        ret += '-'
+        ret += "-"
         _string = _string[1:]
 
     def read_fraction(sub: str):
-        sub_ret = ''
-        if sub[0] == '.':
-            sub_ret += '.'
+        sub_ret = ""
+        if sub[0] == ".":
+            sub_ret += "."
             sub = sub[1:]
             while sub[0] in DIGITS:
                 sub_ret += sub[0]
@@ -68,8 +74,8 @@ def _read_json_number(_string: str) -> float | int:
         return sub_ret, sub
 
     def read_exponent(sub: str):
-        sub_ret = ''
-        if sub[0].lower() == 'e':
+        sub_ret = ""
+        if sub[0].lower() == "e":
             sub_ret += sub[0]
             sub = sub[1:]
 
@@ -86,8 +92,8 @@ def _read_json_number(_string: str) -> float | int:
 
         return sub_ret
 
-    if _string[0] == '0':
-        ret += '0'
+    if _string[0] == "0":
+        ret += "0"
         _string = _string[1:]
 
     elif _string[0] in DIGITS[1:9]:
@@ -103,7 +109,9 @@ def _read_json_number(_string: str) -> float | int:
     return json.loads(ret)
 
 
-def consume_json(_string: str, i: int = 0) -> str | float | int | dict | list | bool | None:
+def consume_json(
+    _string: str, i: int = 0
+) -> str | float | int | dict | list | bool | None:
     """
     Reads a JSON string and stops at the natural end (i.e. when brackets close, or when quotes end, etc.)
     """
@@ -119,7 +127,7 @@ def consume_json(_string: str, i: int = 0) -> str | float | int | dict | list | 
         return _read_json_number(section)
 
     depth = 0
-    json_text = ''
+    json_text = ""
     out_string = True
 
     for char in section:
@@ -127,7 +135,7 @@ def consume_json(_string: str, i: int = 0) -> str | float | int | dict | list | 
 
         if char == '"':
             if len(json_text) > 1:
-                unescaped = json_text[-2] != '\\'
+                unescaped = json_text[-2] != "\\"
             else:
                 unescaped = True
             if unescaped:
@@ -153,8 +161,9 @@ def consume_json(_string: str, i: int = 0) -> str | float | int | dict | list | 
     raise exceptions.UnclosedJSONError(f"Unclosed JSON string, read {json_text}")
 
 
-def generate_page_range(limit: int, offset: int, items_per_page: int, starting_page: int = 1) -> tuple[
-    range, list[int]]:
+def generate_page_range(
+    limit: int, offset: int, items_per_page: int, starting_page: int = 1
+) -> tuple[range, list[int]]:
     """
     Returns a page range (and first indexes per page) generated from a page range
     :param limit: How many items to reach up to
@@ -180,14 +189,14 @@ def generate_page_range(limit: int, offset: int, items_per_page: int, starting_p
 
     page_range = range(
         starting_page + offset // items_per_page,
-        1 + starting_page + (offset + limit - 1) // items_per_page
+        1 + starting_page + (offset + limit - 1) // items_per_page,
     )
     # start_idxs = [offset] + [0] * (limit // items_per_page)
 
     return (
         page_range,
         # start_idxs
-        [items_per_page * (i - starting_page) for i in page_range]
+        [items_per_page * (i - starting_page) for i in page_range],
     )
 
 
@@ -199,7 +208,7 @@ def find_links(soup: BeautifulSoup) -> list[str]:
     return ret
 
 
-def to_dformat(date: datetime, sep: str = '-') -> str:
+def to_dformat(date: datetime, sep: str = "-") -> str:
     """
     Convert a datetime to the format dd-mm-yyyy
     """
@@ -215,9 +224,7 @@ def keep_chrs(_string: str, chars=string.digits, cls: type = str):
     """
     Filter a string to only the characters provided. By default, only keeps digits
     """
-    return cls(''.join(filter(
-        lambda c: c in chars, _string
-    )))
+    return cls("".join(filter(lambda c: c in chars, _string)))
 
 
 def slice_to_range(slc: slice) -> range:
@@ -260,7 +267,7 @@ def get_mode(objs: list[Any], no_dunder: bool = False):
 
     attrs = {}
     for attr in dir(objs[0]):
-        if no_dunder and attr.startswith('__') and attr.endswith('__'):
+        if no_dunder and attr.startswith("__") and attr.endswith("__"):
             continue
 
         success, mode_attr = get_mode_attr(attr, objs)
@@ -268,7 +275,9 @@ def get_mode(objs: list[Any], no_dunder: bool = False):
             try:
                 mode_attr = copy.deepcopy(mode_attr)
             except Exception as e:
-                warnings.warn(f"Could not deepcopy {mode_attr}.\nMaybe try setting `no_dunder` to True? Exception: {e}")
+                warnings.warn(
+                    f"Could not deepcopy {mode_attr}.\nMaybe try setting `no_dunder` to True? Exception: {e}"
+                )
             attrs[attr] = mode_attr
 
     ret = object.__new__(type(objs[0]))
@@ -319,17 +328,20 @@ def with_kwargs(cls):
     """
 
     def from_kwargs(**kwargs):
-        return cls(**{k: v for k, v in kwargs.items() if k in signature(cls).parameters})
+        return cls(
+            **{k: v for k, v in kwargs.items() if k in signature(cls).parameters}
+        )
 
     cls.from_kwargs = from_kwargs
     return cls
 
 
-def resp_to_file(resp: httpx.Response, default_ext: str | T = None) -> tuple[
-        bytes, str | T]:
+def resp_to_file(
+    resp: httpx.Response, default_ext: str | T = None
+) -> tuple[bytes, str | T]:
     if "content-disposition" in resp.headers:
         filename = pyrfc6266.parse_filename(resp.headers["content-disposition"])
-        ext = '.' + filename.split('.')[-1]
+        ext = "." + filename.split(".")[-1]
     elif "Content-Type" in resp.headers:
         ext = mimetypes.guess_extension(resp.headers["Content-Type"])
 
