@@ -9,6 +9,11 @@ async def test_b_timetable():
     )
 
     print(await sess.email)
+    print(sess.username)
+
+    pfp, ext = await sess.pfp
+    with open(f"idk{ext}", "wb") as f:
+        f.write(pfp)
 
 
 if __name__ == "__main__":
