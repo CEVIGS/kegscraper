@@ -8,7 +8,7 @@ async def test_b_timetable():
         int(os.environ["BSCRT_ID"]), os.environ["BSCRT_UN"], os.environ["BSCRT_PW"]
     )
 
-    # print(sess.email)
+    print(await sess.email)
 
 
 if __name__ == "__main__":
