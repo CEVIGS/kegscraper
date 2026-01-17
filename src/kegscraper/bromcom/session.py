@@ -108,11 +108,14 @@ class Session:
         return self._name
 
     @property
-    def pfp(self) -> bytes:
+    async def pfp(self) -> tuple[bytes, str]:
         """
-        Fetch the user's corresponding profile picture as bytes
+        Fetch the user's corresponding profile picture as bytes, as well as a fileext
         """
-        return self._sess.get("https://www.bromcomvle.com/AccountSettings/GetPersonPhoto").content
+        resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetPersonPhoto")
+        ext = mimetypes.guess_extension(response.headers.get("Content-Type", "image/Jpeg"))
+        return resp.content, ext if ext is not None else ".jpg"
+            
 
     @property
     def school_photo(self) -> bytes:
@@ -120,14 +123,6 @@ class Session:
         Fetch the school's corresponding photo as bytes
         """
         return self._sess.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto").content
-
-    @property
-    def pfp_ext(self):
-        """
-        Fetch the image format of the profile picture
-        """
-        response = self._sess.get("https://www.bromcomvle.com/AccountSettings/GetPersonPhoto")
-        return mimetypes.guess_extension(response.headers.get("Content-Type", "image/Jpeg"))
 
     @property
     def school_photo_ext(self):
