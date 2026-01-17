@@ -1,6 +1,6 @@
 [project]
 name = "kegscraper"
-version = "v0.1.24"
+version = "1.0.0"
 description = "The ultimate KEGS webscraping module"
 readme = "README.md"
 license = "Unlicense"
