@@ -15,6 +15,8 @@ async def test_b_timetable():
     with open(f"idk{ext}", "wb") as f:
         f.write(pfp)
 
+    print(await sess.school_contact_details)
+
 
 if __name__ == "__main__":
     asyncio.run(test_b_timetable())
