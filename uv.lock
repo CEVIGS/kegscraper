@@ -444,6 +444,7 @@ dependencies = [
     { name = "lxml" },
     { name = "pypdf" },
     { name = "pyperclip" },
+    { name = "pyrfc6266" },
     { name = "requests" },
     { name = "setuptools" },
     { name = "typing-extensions" },
@@ -470,6 +471,7 @@ requires-dist = [
     { name = "playwright", marker = "extra == 'all'", specifier = ">=1.57.0" },
     { name = "pypdf", specifier = "~=5.1.0" },
     { name = "pyperclip", specifier = "~=1.9.0" },
+    { name = "pyrfc6266", specifier = ">=1.0.2" },
     { name = "requests", specifier = "~=2.32.3" },
     { name = "setuptools", specifier = "~=75.6.0" },
     { name = "typing-extensions", specifier = "~=4.13.2" },
@@ -629,6 +631,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyparsing"
+version = "3.0.9"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/22/207523d16464c40a0310d2d4d8926daffa00ac1f5b1576170a32db749636/pyparsing-3.0.9.tar.gz", hash = "sha256:2b020ecf7d21b687f219b71ecad3631f644a47f01403fa1d1036b0c6416d70fb", size = 1999906, upload-time = "2022-05-10T23:26:05.963Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/10/a7d0fa5baea8fe7b50f448ab742f26f52b80bfca85ac2be9d35cdd9a3246/pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc", size = 98338, upload-time = "2022-05-10T23:26:03.201Z" },
+]
+
+[[package]]
 name = "pypdf"
 version = "5.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -645,6 +656,18 @@ name = "pyperclip"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/30/23/2f0a3efc4d6a32f3b63cdff36cd398d9701d26cda58e3ab97ac79fb5e60d/pyperclip-1.9.0.tar.gz", hash = "sha256:b7de0142ddc81bfc5c7507eea19da920b92252b548b96186caf94a5e2527d310", size = 20961, upload-time = "2024-06-18T20:38:48.401Z" }
+
+[[package]]
+name = "pyrfc6266"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/74/ef/693fe33d34317facaf26a5716f965dac492d0f47e56e90bf310d7d4e74df/pyrfc6266-1.0.2.tar.gz", hash = "sha256:3c41616b6a1f2e9a26df7f005fbaa634f960121769ccc4445acfb404e9f8fd4c", size = 4454, upload-time = "2022-04-29T14:53:23.805Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/fc/d416c1bfb54f86259f631fd9ff6a9b813f7050129a377d94c43500109479/pyrfc6266-1.0.2-py3-none-any.whl", hash = "sha256:0532307f319566f337dba97577dfaefe493c3e0c40ab211449ba4566fc2cf73d", size = 4729, upload-time = "2022-04-29T14:53:22.569Z" },
+]
 
 [[package]]
 name = "pytest"

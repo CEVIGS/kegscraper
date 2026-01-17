@@ -112,9 +112,7 @@ class Session:
         Fetch the user's corresponding profile picture as bytes, as well as a fileext
         """
         resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetPersonPhoto")
-        filename: str = resp.headers.get("filename", ".jpg")
-        ext = '.' + filename.split('.')[-1]
-        return resp.content, ext
+        return commons.resp_to_file(resp)
 
     @property
     async def school_photo(self) -> bytes:
