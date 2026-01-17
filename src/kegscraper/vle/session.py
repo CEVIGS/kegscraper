@@ -43,6 +43,7 @@ class Session:
     def __await__(self):
         async def inner():
             await self.assert_login()
+            return self
 
         return inner().__await__()
 
@@ -54,7 +55,7 @@ class Session:
     @property
     async def is_signed_in(self):
         resp = await self.rq.get("https://vle.kegs.org.uk")
-        return resp.url.raw != "https://vle.kegs.org.uk/login/index.php"
+        return str(resp.url) != "https://vle.kegs.org.uk/login/index.php"
 
     @property
     async def sesskey(self):
@@ -92,7 +93,7 @@ class Session:
         I can still work out what would be the response format from the moodle docs, but no point
         """
         if user_id is None:
-            user_id = self.user_id
+            user_id = await self.user_id
 
         data = await self.webservice(
             "message_popup_get_popup_notifications",
@@ -158,16 +159,18 @@ class Session:
         return self._username
 
     @property
-    def user_id(self):
+    async def user_id(self):
         """Fetch the connected user's user id"""
         if self._user_id is None:
-            response = self.rq.get("https://vle.kegs.org.uk/")
-            soup = BeautifulSoup(response.text, "html.parser")
+            resp = await self.rq.get("https://vle.kegs.org.uk/")
+            soup = BeautifulSoup(resp.text, "html.parser")
 
-            url = soup.find("a", {"title": "View profile"}).attrs["href"]
+            urltag = soup.find("a", {"title": "View profile"})
+            assert urltag is not None
+            url = urltag.attrs["href"]
 
             parsed = parse_qs(urlparse(url).query)
-            self._user_id = int(parsed.get("id")[0])
+            self._user_id = int(parsed["id"][0])
 
         return self._user_id
 
@@ -603,13 +606,14 @@ async def login(username: str, password: str) -> Session:
     :return: a new session
     """
 
-    rq = httpx.AsyncClient(headers=commons.headers.copy())
+    rq = httpx.AsyncClient(headers=commons.headers.copy(), follow_redirects=True)
 
     resp = await rq.get("https://vle.kegs.org.uk/login/index.php")
 
     inputs = commons.eval_inputs(BeautifulSoup(resp.text, "html.parser"))
     inputs["username"] = username
     inputs["password"] = password
+    # inputs["anchor"] = None
 
     await rq.post("https://vle.kegs.org.uk/login/index.php", data=inputs)
 
@@ -622,7 +626,9 @@ async def login_by_moodle(moodle_cookie: str) -> Session:
     :param moodle_cookie: The MoodleSession cookie (see in the application/storage tab of your browser devtools when you log in)
     :return: A new session
     """
-    rq = httpx.AsyncClient(cookies={"MoodleSession": moodle_cookie})
+    rq = httpx.AsyncClient(
+        cookies={"MoodleSession": moodle_cookie}, follow_redirects=True
+    )
 
     try:
         return await Session(rq=rq)
