@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing_extensions import Optional
 
 from bs4 import BeautifulSoup, Comment
 
@@ -19,6 +20,7 @@ class Category:
     """
     A dataclass representing a category of a news item on kegsIT
     """
+
     id: int
     name: str
 
@@ -28,17 +30,18 @@ class NewsItem:
     """
     A news 'article'/post on the kegsIT website
     """
+
     id: int
 
-    author: str = None
-    title: str = None
-    content: str = field(repr=False, default=None)
+    author: Optional[str] = None
+    title: Optional[str] = None
+    content: Optional[str] = field(repr=False, default=None)
 
-    date: datetime = None
-    category: Category = None
+    date: Optional[datetime] = None
+    category: Optional[Category] = None
 
 
-def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
+async def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
     """
     Get the news item at the specified page index
     :param category: Category of news
@@ -49,19 +52,17 @@ def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
         category = category.id
 
     # Find the page corresponding to the category & post
-    response = commons.REQ.get(f"https://it.kegs.org.uk/",
-                               params={
-                                   "cat": category,
-                                   "paged": page
-                               })
+    resp = await commons.REQ.get(
+        f"https://it.kegs.org.uk/", params={"cat": category, "paged": page}
+    )
 
-    if response.status_code == 404:
-        raise exceptions.NotFound(f"Could not find news page. Content: {response.content}")
+    if resp.status_code == 404:
+        raise exceptions.NotFound(f"Could not find news page. Content: {resp.content}")
 
-    text = response.text
-    soup = BeautifulSoup(text, "html.parser")
+    soup = BeautifulSoup(resp.text, "html.parser")
 
     anchor = soup.find("a", {"rel": "bookmark"})
+    assert anchor is not None
 
     url = anchor.attrs.get("href")
     qparse = parse_qs(urlparse(url).query)
@@ -69,19 +70,21 @@ def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
     news_id = int(qparse["p"][0])
 
     # Actually scrape the main page for this news item
-    text = commons.REQ.get("https://it.kegs.org.uk/",
-                           params={
-                               "p": news_id
-                           }).text
-    soup = BeautifulSoup(text, "html.parser")
+    resp = await commons.REQ.get("https://it.kegs.org.uk/", params={"p": news_id})
+    soup = BeautifulSoup(resp.text, "html.parser")
 
-    title = soup.find("div", {"class": "singlepage"}).text
+    title_elem = soup.find("div", {"class": "singlepage"})
+    assert title_elem is not None
+    title = title_elem.text
 
     date_elem = soup.find("abbr")
+    assert date_elem is not None
     date = datetime.fromisoformat(date_elem.attrs.get("title"))
 
     # There is a cheeky comment above the date element that we can try to webscrape
-    comment = date_elem.parent.find(string=lambda _text: isinstance(_text, Comment)).extract()
+    comment = date_elem.parent.find(
+        string=lambda _text: isinstance(_text, Comment)
+    ).extract()
     # It's actually in HTML format
     comment_text = BeautifulSoup(comment, "html.parser").text
 
@@ -89,6 +92,7 @@ def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
 
     # Contents and category
     contents_div = soup.find("div", {"id": "content"})
+    assert contents_div is not None
 
     post_wrapper = contents_div.find("div", {"id": "singlepostwrapper"})
     category_anchor = post_wrapper.find("a", {"rel": "category"})
@@ -100,19 +104,12 @@ def get_news_page(page: int = 1, category: int | Category = 7) -> NewsItem:
     # Get content
     content = contents_div.find("div", {"class": "entry"}).text.strip()
 
-    return NewsItem(
-        news_id,
-        author,
-
-        title,
-        content,
-
-        date,
-        category_obj
-    )
+    return NewsItem(news_id, author, title, content, date, category_obj)
 
 
-def load_news_category(category: int | Category = 7, *, limit: int = 10, offset: int = 0) -> list[NewsItem]:
+def load_news_category(
+    category: int | Category = 7, *, limit: int = 10, offset: int = 0
+) -> list[NewsItem]:
     """
     Make mutliple requests to kegsIT to load an entire category of news data with a given offset and limit
     :param category: Category of news data to scrape. Defaults to the 'news' category
