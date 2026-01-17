@@ -1,13 +1,13 @@
 """
 Session class and login function. (most bromcom functionality)
 """
+
 from __future__ import annotations
 
 import dateparser
 import httpx
-import mimetypes
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from dataclasses import dataclass
 from typing_extensions import Optional, Any
 from base64 import b64decode
@@ -41,11 +41,10 @@ class Session:
         """
         Set a color preference request to bromcom. Might not work yet
         """
-        return self._sess.post("https://www.bromcomvle.com/AccountSettings/SaveColorPreference",
-                               json={
-                                   "Name": name,
-                                   "Value": value
-                               })
+        return self._sess.post(
+            "https://www.bromcomvle.com/AccountSettings/SaveColorPreference",
+            json={"Name": name, "Value": value},
+        )
 
     @property
     async def email(self) -> Optional[str]:
@@ -75,7 +74,7 @@ class Session:
                 if i == 0:
                     continue
 
-                elif text.endswith(':'):
+                elif text.endswith(":"):
                     # Trim off colon
                     text = text[:-1]
 
@@ -94,13 +93,17 @@ class Session:
         """
         if self._name is None:
             resp = await self.rq.get("https://www.bromcomvle.com/Home/Dashboard")
-            soup = BeautifulSoup(resp.text, "html.parser", parse_only=SoupStrainer("span"))
+            soup = BeautifulSoup(
+                resp.text, "html.parser", parse_only=SoupStrainer("span")
+            )
 
             message = soup.find("span", {"id": "UsernameLabel"})
             if message is None:
-                raise exceptions.NotFound(f"Could not find welcome message! Response: {resp.text}")
+                raise exceptions.NotFound(
+                    f"Could not find welcome message! Response: {resp.text}"
+                )
 
-            self._name: str = message.text.strip()
+            self._name = message.text.strip()
             if not isinstance(self._name, str):
                 self._name = None
 
@@ -111,7 +114,9 @@ class Session:
         """
         Fetch the user's corresponding profile picture as bytes, as well as a fileext
         """
-        resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetPersonPhoto")
+        resp = await self.rq.get(
+            "https://www.bromcomvle.com/AccountSettings/GetPersonPhoto"
+        )
         return commons.resp_to_file(resp)
 
     @property
@@ -119,13 +124,19 @@ class Session:
         """
         Fetch the school's corresponding photo as bytes
         """
-        resp = await self.rq.get("https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto")
+        r: str = None
+        resp = await self.rq.get(
+            "https://www.bromcomvle.com/AccountSettings/GetSchoolPhoto"
+        )
         return commons.resp_to_file(resp)
 
     # --- Timetable methods ---
-    def get_timetable_list(self, start_date: datetime | timetable.WeekDate = None,
-                           end_date: datetime | timetable.WeekDate = None, w_a_b: str = None) -> list[
-        timetable.Lesson]:
+    async def get_timetable_list(
+        self,
+        start_date: datetime | timetable.WeekDate | None = None,
+        end_date: datetime | timetable.WeekDate | None = None,
+        w_a_b: str | None = None,
+    ) -> list[timetable.Lesson]:
         """
         Fetch the user's timetable starting at a corresponding week and ending on another, as a list of Lesson objects
         :param w_a_b: week a or b on start date
@@ -136,34 +147,41 @@ class Session:
 
         if isinstance(start_date, timetable.WeekDate):
             start_date = start_date.date
+
         if isinstance(end_date, timetable.WeekDate):
             end_date = end_date.date
 
         if start_date is None:
-            start_date = self.current_week.date
+            cw = await self.current_week
+            assert cw is not None, "Could not find current week"
+            start_date = cw.date
+
         if end_date is None:
             end_date = start_date + timedelta(weeks=1)
 
         if w_a_b is None:
-            w_a_b = self.timetable_weeks.index(self.get_tt_week(start_date)) % 2
+            tt_week = await self.get_tt_week(start_date)
+            assert tt_week is not None, f"Could not find tt_week for {start_date}"
+            wab_offset = (await self.timetable_weeks).index(tt_week) % 2
         else:
-            w_a_b = "ab".index(w_a_b)
+            wab_offset = "ab".index(w_a_b)
 
-        response = self._sess.get("https://www.bromcomvle.com/Timetable/GetTimeTable",
-                                  params={
-                                      "WeekStartDate": commons.to_dformat(start_date),
-                                      "weekEndDate": commons.to_dformat(end_date),
-                                      "type": 1
-                                  })
-        data = response.json()["table"]
+        resp = await self.rq.get(
+            "https://www.bromcomvle.com/Timetable/GetTimeTable",
+            params={
+                "WeekStartDate": commons.to_dformat(start_date),
+                "weekEndDate": commons.to_dformat(end_date),
+                "type": 1,
+            },
+        )
+        data = resp.json()["table"]
 
         lessons = []
         for lesson_data in data:
-            lesson_data: dict[str, str | int]
+            # lesson_data: dict[str, str | int]
+            lesson_data: dict[str, Any]
 
-            lesson_start_date = datetime.fromisoformat(
-                        lesson_data.get("startDate")
-                    )
+            lesson_start_date = datetime.fromisoformat(lesson_data["startDate"])
             lessons.append(
                 timetable.Lesson(
                     lesson_data.get("periods"),
@@ -174,31 +192,40 @@ class Session:
                     lesson_data.get("teacherID"),
                     lesson_data.get("weekID"),
                     lesson_start_date,
-                    datetime.fromisoformat(
-                        lesson_data.get("endDate")
-                    ),
+                    datetime.fromisoformat(lesson_data["endDate"]),
                     color=lesson_data.get("subjectColour"),
                     _sess=self,
-                    week_a_b="ab"[(self.get_tt_week_idx(lesson_start_date) - self.get_tt_week_idx(start_date) + w_a_b) % 2]
-                ))
+                    week_a_b="ab"[
+                        (
+                            (await self.get_tt_week_idx(lesson_start_date))
+                            - (await self.get_tt_week_idx(start_date))
+                            + wab_offset
+                        )
+                        % 2
+                    ],
+                )
+            )
         return lessons
 
-    def get_weeks_a_b(self, delta: int = 5):
+    async def get_weeks_a_b(
+        self, delta: int = 5
+    ) -> tuple[list[timetable.Lesson], list[timetable.Lesson]]:
         """
+        Get 2 lists of lessons (weeka, weekb), generated `delta` weeks back and forth from the current week
         :param delta: number of weeks before and after to measure
         :return:
         """
-        idx = self.current_week_idx
+        idx = await self.current_week_idx
 
-        weeks0 = []
-        weeks1 = []
+        weeks0: list[timetable.Lesson] = []
+        weeks1: list[timetable.Lesson] = []
 
         for i in range(idx - delta, idx + delta):
-            if not 0 <= i < len(self.timetable_weeks):
+            if not 0 <= i < len(await self.timetable_weeks):
                 continue
 
-            week = self.timetable_weeks[i]
-            _timetable = self.get_timetable_list(week)
+            weeks = await self.timetable_weeks
+            _timetable = await self.get_timetable_list(weeks[i])
 
             for lesson in _timetable:
                 if lesson.week_a_b == "a":
@@ -208,18 +235,20 @@ class Session:
 
         return weeks0, weeks1
 
-    def get_mode_timetables(self, delta: int = 5):
+    async def get_mode_timetables(self, delta: int = 5):
         """
         Infer the base timetable. Look over multiple weeks to avoid being tripped up by pshe, or Comp Room lessons etc.
         :param delta: # of weeks forward/back to look at
         :return: a dictionary of a dictionary of a dictionary of lessons
         """
-        a, b = self.get_weeks_a_b(delta)
-        return {"a": timetable.get_mode_timetable(a),
-                "b": timetable.get_mode_timetable(b)}
+        a, b = await self.get_weeks_a_b(delta)
+        return {
+            "a": timetable.get_mode_timetable(a),
+            "b": timetable.get_mode_timetable(b),
+        }
 
     @property
-    def timetable_weeks(self) -> list[timetable.WeekDate]:
+    async def timetable_weeks(self) -> list[timetable.WeekDate]:
         """
         Fetch a list of valid weeks in the user's timetable
         :return: A list of WeekDate objects, representing the start of each week, also containing a term and week index.
@@ -227,84 +256,83 @@ class Session:
         if self._timetable_weeks is None:
             self._timetable_weeks = []
 
-            text = self._sess.get("https://www.bromcomvle.com/Timetable").text
-            soup = BeautifulSoup(text, "html.parser")
+            resp = await self.rq.get("https://www.bromcomvle.com/Timetable")
+            soup = BeautifulSoup(resp.text, "html.parser")
 
             date_selector = soup.find("select", {"id": "WeekStartDate"})
+            assert date_selector is not None
 
             for option in date_selector.find_all("option"):
                 value = dateparser.parse(option.attrs.get("value"))
+                assert value is not None, f"Failed to parse date"
                 text = option.text
 
-                term, week, _ = text.split(' - ')
-                term = commons.webscrape_section(term, "Term ", '', cls=int)
-                week = commons.webscrape_section(week, "Week ", '', cls=int)
+                term, week, _ = text.split(" - ")
+                term = commons.webscrape_section(term, "Term ", "", cls=int)
+                week = commons.webscrape_section(week, "Week ", "", cls=int)
 
-                self._timetable_weeks.append(
-                    timetable.WeekDate(term, week, value)
-                )
+                self._timetable_weeks.append(timetable.WeekDate(term, week, value))
 
         return self._timetable_weeks
 
-    def get_tt_week(self, _dtime: datetime) -> timetable.WeekDate | None:
+    async def get_tt_week(self, _dtime: datetime) -> timetable.WeekDate | None:
         """
         Gets the timetable week by datetime
         """
         prev = None
-        for wdate in self.timetable_weeks:
+        for wdate in await self.timetable_weeks:
             if wdate.date > _dtime:
                 return prev
             prev = wdate
 
     @property
-    def current_week(self) -> timetable.WeekDate | None:
+    async def current_week(self) -> timetable.WeekDate | None:
         """
         Gets the current existing timetable week (will go to last school week during holidays)
         """
-        return self.get_tt_week(datetime.today())
+        return await self.get_tt_week(datetime.today())
 
-    def get_tt_week_idx(self, _dtime: datetime) -> int:
+    async def get_tt_week_idx(self, _dtime: datetime) -> int:
         """
         Gets the timetable week index by datetime
         """
-        for i, wdate in enumerate(self.timetable_weeks):
+        for i, wdate in enumerate(await self.timetable_weeks):
             if wdate.date > _dtime:
                 return i
         return -1
 
     @property
-    def current_week_idx(self) -> int:
-        return self.get_tt_week_idx(datetime.today())
+    async def current_week_idx(self) -> int:
+        return await self.get_tt_week_idx(datetime.today())
 
     # --- Attendance methods ---
     @property
-    def present_late_ratio(self) -> dict[str, int]:
+    async def present_late_ratio(self) -> dict[str, int]:
         """
         Webscrape JSON inside JS inside HTML to get the present, late and other attendance type counts. i.e.:
         Returns a dictionary e.g.: {
-        "present": 176,
-        "late": 21
+        "Present (P)": 176,
+        "Late (L)": 21
         }
         :return: A dictionary of attendance statuses and their counts
         """
         # Parse JSON inside of JS inside of HTML. Yeah....
-        text = self._sess.get("https://www.bromcomvle.com/Attendance").text
-        soup = BeautifulSoup(text, "html.parser")
+        resp = await self.rq.get("https://www.bromcomvle.com/Attendance")
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-        script_prf = ('$(document).ready(function () {\r\n'
-                      '        var AttendanceChart = c3.generate({\r\n'
-                      '            bindto: \'#AttendanceChart\',\r\n'
-                      '            data: {\r\n'
-                      '                columns: ')
+        script_prf = "$(document).ready(function () {\r\n            var AttendanceChart = c3.generate({\r\n                bindto: '#AttendanceChart',\r\n"
 
         for script in soup.find_all("script", {"type": "text/javascript"}):
             text = script.text.strip()
 
-            if text.startswith(script_prf):
+            if script_prf in text:
                 # Found correct js script. Now webscrape.
-                text = text[len(script_prf):]
+                text = text[text.find(script_prf) :]
+                text = text[text.find("data: ") :]
+                text = text[text.find("columns: [") + 9 :]
 
                 data = commons.consume_json(text)
+                assert isinstance(data, list)
 
                 ret = {cat: count for cat, count in data}
 
@@ -313,11 +341,13 @@ class Session:
         return {}
 
     @property
-    def attendance_status(self):
+    async def attendance_status(self):
         """
         Get the Status for the current day. (Uses the widget api)
         """
-        return self._sess.get("https://www.bromcomvle.com/Home/GetAttendanceWidgetData").json()
+        return (
+            await self.rq.get("https://www.bromcomvle.com/Home/GetAttendanceWidgetData")
+        ).json()
 
     # --- Reports data ---
 
@@ -328,7 +358,9 @@ class Session:
         :return: A list of dictionaries representing reports. The filePath attribute can be used in the get_report method to fetch the report pdf as bytes
         """
         # Parse this later
-        return self._sess.get("https://www.bromcomvle.com/Home/GetReportsWidgetData").json()
+        return self._sess.get(
+            "https://www.bromcomvle.com/Home/GetReportsWidgetData"
+        ).json()
 
     def get_report(self, filepath: str) -> bytes:
         """
@@ -337,10 +369,9 @@ class Session:
         :return: The report data as bytes
         """
         # Get the data encoded in b64 encoded in JSON. Weird.
-        data = self._sess.get("https://www.bromcomvle.com/Report/GetReport",
-                              params={
-                                  "filePath": filepath
-                              }).json()
+        data = self._sess.get(
+            "https://www.bromcomvle.com/Report/GetReport", params={"filePath": filepath}
+        ).json()
 
         return b64decode(data)
 
@@ -353,7 +384,9 @@ class Session:
         :return:
         """
         # Parse this
-        return self._sess.get("https://www.bromcomvle.com/Home/GetExamResultsWidgetData").json()
+        return self._sess.get(
+            "https://www.bromcomvle.com/Home/GetExamResultsWidgetData"
+        ).json()
 
     # --- Bookmarks data ---
     @property
@@ -363,7 +396,9 @@ class Session:
         :return: list of dictionaries, each is a bookmark
         """
         # Parse this
-        return self._sess.get("https://www.bromcomvle.com/Home/GetBookmarksWidgetData").json()
+        return self._sess.get(
+            "https://www.bromcomvle.com/Home/GetBookmarksWidgetData"
+        ).json()
 
     # --- Homework data ---
     @property
@@ -372,10 +407,18 @@ class Session:
         Fetch homework data using the widget api. I have no homework so I am unable to parse this
         :return: A list of something
         """
-        return self._sess.get("https://www.bromcomvle.com/Home/GetHomeworkWidgetData").json()
+        return self._sess.get(
+            "https://www.bromcomvle.com/Home/GetHomeworkWidgetData"
+        ).json()
 
 
-async def login(school_id: int, username: str, password: str, remember_me: bool = True, kwargs: Optional[dict] = None) -> Session:
+async def login(
+    school_id: int,
+    username: str,
+    password: str,
+    remember_me: bool = True,
+    kwargs: Optional[dict] = None,
+) -> Session:
     """
     Login to bromcom with a school id, username and password.
     :param school_id: KEGS school id (you provide it)
@@ -387,24 +430,27 @@ async def login(school_id: int, username: str, password: str, remember_me: bool 
     if kwargs is None:
         kwargs = {}
     rq = httpx.AsyncClient(headers=commons.headers.copy(), **kwargs)
-    inputs = commons.eval_inputs(BeautifulSoup(
-        (await rq.get("https://www.bromcomvle.com/")).text,
-        "html.parser"
-    ))
+    inputs = commons.eval_inputs(
+        BeautifulSoup((await rq.get("https://www.bromcomvle.com/")).text, "html.parser")
+    )
 
     inputs["schoolid"] = school_id
     inputs["username"] = username
     inputs["password"] = password
     inputs["rememberme"] = str(remember_me)
-    resp = await rq.post("https://www.bromcomvle.com/", data=inputs, follow_redirects=True)
+    resp = await rq.post(
+        "https://www.bromcomvle.com/", data=inputs, follow_redirects=True
+    )
 
     if resp.status_code != 200:
         if resp.status_code == 500:
             raise exceptions.ServerError(
-                f"The bromcom server experienced some error when handling the login request (ERR 500). Response content: {response.content}")
+                f"The bromcom server experienced some error when handling the login request (ERR 500). Response content: {resp.content}"
+            )
         else:
             raise exceptions.Unauthorised(
                 f"The provided details for {username} may be invalid. Status code: {resp.status_code} "
-                f"Response content: {resp.content}")
+                f"Response content: {resp.content}"
+            )
 
     return Session(rq=rq, username=username)
