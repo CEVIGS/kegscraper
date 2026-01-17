@@ -11,8 +11,12 @@ async def test_b_timetable():
     print(await sess.email)
     print(sess.username)
 
+    pfp, _ = await sess.school_photo  # the ext provided by content-disposition (png) is wrong. so dont use ext
+    with open("school_photo.gif", "wb") as f:
+        f.write(pfp)
+
     pfp, ext = await sess.pfp
-    with open(f"idk{ext}", "wb") as f:
+    with open(f"pfp{ext}", "wb") as f:
         f.write(pfp)
 
     print(await sess.school_contact_details)
