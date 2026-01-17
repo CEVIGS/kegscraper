@@ -2,45 +2,54 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
+from bs4 import BeautifulSoup
 
-from bs4 import BeautifulSoup, PageElement
+import bs4
 
 from ..util import commons, exceptions
+
 
 @dataclass
 class Article:
     id: int
-    title: str = None
-    contents: PageElement = field(repr=False, default=None)
+    title: str | None = None
+    contents: bs4.PageElement | bs4.Tag | None = field(repr=False, default=None)
 
     @property
     def text(self):
+        if self.contents is None:
+            return ""
         return self.contents.text.strip()
 
-    def update_by_id(self):
-        response = commons.REQ.get("https://it.kegs.org.uk/", params={
-            "page_id": self.id
-        })
+    async def update_by_id(self):
+        resp = await commons.REQ.get(
+            "https://it.kegs.org.uk/", params={"page_id": self.id}
+        )
 
-        if not "page_id" in parse_qs(urlparse(response.url).query):
-            raise exceptions.NotFound(f"'article' id={self.id} is not an article. (redirected to {response.url})")
+        if not "page_id" in parse_qs(resp.url.query.decode()):
+            raise exceptions.NotFound(
+                f"'article' id={self.id} is not an article. (redirected to {resp.url})"
+            )
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(resp.text, "html.parser")
         post = soup.find("div", {"id": "content"})
 
-        try:
-            heading = post.find("div", {"class": "singlepage"})
+        if post is None:
+            raise exceptions.NotFound(f"article {self.id=} probably doesn't exist.")
+        heading = post.find("div", {"class": "singlepage"})
+        if heading is None:
+            raise exceptions.NotFound(f"article {self.id=} is bad")
 
-            self.title = heading.text
-            self.contents = post
-            # ^^ the reason why the whole post is used rather than only the 'entry' div is because of article #22,
-            # which doesn't contain an entry div: https://it.kegs.org.uk/?page_id=22
-
-        except AttributeError as e:
-            raise exceptions.NotFound(f"article id={self.id} probably doesn't exist. error: {e}")
+        self.title = heading.text
+        self.contents = post
+        # ^^ the reason why the whole post is used rather than only the 'entry' div is because of article #22,
+        # which doesn't contain an entry div: https://it.kegs.org.uk/?page_id=22
 
 
-def get_article_by_id(_id: int):
-    article = Article(_id)
-    article.update_by_id()
+async def get_article_by_id(_id: int) -> Article | None:
+    try:
+        article = Article(_id)
+        await article.update_by_id()
+    except exceptions.NotFound:
+        return None
     return article

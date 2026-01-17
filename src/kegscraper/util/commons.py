@@ -14,12 +14,12 @@ from datetime import datetime
 from typing import Any, Final, TypeVar
 from inspect import signature
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
 
 from . import exceptions
 
-REQ: Final[requests.Session] = requests.Session()
+REQ: Final[httpx.AsyncClient] = httpx.AsyncClient()
 T = TypeVar("T")
 
 DIGITS: Final = tuple("0123456789")
@@ -339,6 +339,7 @@ def with_kwargs(cls):
 def resp_to_file(
     resp: httpx.Response, default_ext: str | T = None
 ) -> tuple[bytes, str | T]:
+    ext = None
     if "content-disposition" in resp.headers:
         filename = pyrfc6266.parse_filename(resp.headers["content-disposition"])
         ext = "." + filename.split(".")[-1]
