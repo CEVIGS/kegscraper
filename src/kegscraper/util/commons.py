@@ -274,6 +274,10 @@ def get_mode(objs: list[Any], no_dunder: bool = False):
 
 
 def eval_inputs(soup: BeautifulSoup) -> dict[str, Any]:
+    """
+    Traverses the soup to find all <input> and <select> tags, and evaluate their values.
+    Return a dict of these tag's 'name' attributes, and their values.
+    """
     qs = {}
 
     # Parse inputs
@@ -295,7 +299,8 @@ def eval_inputs(soup: BeautifulSoup) -> dict[str, Any]:
                 else:
                     selected = option
 
-        qs[select.get("name")] = selected.get("value")
+        if isinstance(selected, dict):
+            qs[select.get("name")] = selected.get("value")
 
     return qs
 
