@@ -1,7 +1,7 @@
 # kegscraper
 
 kegscraper is a Python library for automation on the KEGS platform.
-Different services used by KEGS are split into the different [submodules](/submodules)
+Different services used by KEGS are split into the different [submodules](/submodules.md)
 
 ## installation
 
@@ -26,4 +26,4 @@ We use uv to build and publish kegscraper to pypi.
 
 ## Development
 
-See [development](/development)
+See [development](/development.md)
