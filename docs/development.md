@@ -17,7 +17,12 @@ Here is some information which will help you to develop/contribute to kegscraper
 4. On windows (pwsh), run `.venv/Scripts/activate`, on mac/liunux, run `source .venv/bin/activate`
 5. Run `uv sync`
 6. Test your code. Make a directory: `tests/local_tests` and put your code there.
-  - The `tests/` directory hosts scripts which can be run with [`pytest`](https://docs.pytest.org/en/stable/).
-7. When you have added your feature or hotfix, open a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests)
-8. Wait/hope for it to be merged!
 
+- The `tests/` directory hosts scripts which can be run with [`pytest`](https://docs.pytest.org/en/stable/).
+1. When you have [committed](https://docs.github.com/en/pull-requests/committing-changes-to-your-project/creating-and-editing-commits/about-commits) your feature or hotfix, open a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests)
+2. Wait/hope for it to be merged!
+
+## tips
+
+- In kegscraper, it is advised to use [conventional commit names](https://www.conventionalcommits.org)
+- It is advised to store authentication data in a `toml` file (make sure it is gitignored!!) or in environment variables. **Definitely not directly in your code as it can be committed.
