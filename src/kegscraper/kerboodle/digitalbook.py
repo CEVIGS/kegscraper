@@ -9,7 +9,6 @@ from urllib.parse import urlparse, urlunparse
 
 import dateparser
 from bs4 import BeautifulSoup
-import lxml
 
 from . import session, course
 
@@ -103,8 +102,6 @@ class DigitalBook:
 
     @property
     async def _datajs(self):
-        assert lxml  # you need lxml to parse xml
-
         resp = await self._sess.rq.get(await self._datajs_url)
         js = resp.text.strip()
 
