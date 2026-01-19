@@ -40,12 +40,13 @@ class Session:
     _user: user.User | None = None
     _username: str | None = None
 
-    def __await__(self):
-        async def inner():
-            await self.assert_login()
-            return self
+    async def __aenter__(self):
+        await self.assert_login()
+        return self
 
-        return inner().__await__()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.logout()
+        return False
 
     # --- Session/auth related methods ---
     @property
@@ -627,7 +628,7 @@ async def login(username: str, password: str) -> Session:
 
     await rq.post("https://vle.kegs.org.uk/login/index.php", data=inputs)
 
-    return await Session(rq=rq)
+    return Session(rq=rq)
 
 
 async def login_by_moodle(moodle_cookie: str) -> Session:
@@ -641,7 +642,7 @@ async def login_by_moodle(moodle_cookie: str) -> Session:
     )
 
     try:
-        return await Session(rq=rq)
+        return Session(rq=rq)
     except requests.exceptions.TooManyRedirects:
         raise ValueError(
             f"The moodle cookie {moodle_cookie!r} may be invalid/outdated."
