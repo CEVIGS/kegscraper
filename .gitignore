@@ -5,3 +5,5 @@ dist/
 tests/local_tests
 school_photo.*
 pfp.*
+site/
+.cache/
