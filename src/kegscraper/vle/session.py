@@ -107,11 +107,11 @@ class Session:
         return data["unreadcount"], data["notifications"]
 
     @property
-    def file_client_id(self):
+    async def file_client_id(self):
         """Get the client id value used for file management"""
         if self._file_client_id is None:
-            response = self.rq.get("https://vle.kegs.org.uk/user/files.php")
-            soup = BeautifulSoup(response.text, "html.parser")
+            resp = await self.rq.get("https://vle.kegs.org.uk/user/files.php")
+            soup = BeautifulSoup(resp.text, "html.parser")
 
             for div in soup.find_all("div", {"class": "filemanager w-100 fm-loading"}):
                 self._file_client_id = div.attrs["id"].split("filemanager-")[1]
@@ -119,31 +119,32 @@ class Session:
         return self._file_client_id
 
     @property
-    def connected_user(self) -> user.User:
+    async def connected_user(self) -> user.User:
         """Fetch the connected user to this session"""
         if not self._user:
-            self._user = self.connect_user_by_id(self.user_id)
+            self._user = await self.connect_user_by_id(self.user_id)
 
+        assert self._user
         return self._user
 
     @property
-    def file_item_id(self):
+    async def file_item_id(self):
         """Fetch the item id value used for file management"""
         if self._file_item_id is None:
-            response = self.rq.get("https://vle.kegs.org.uk/user/files.php")
-            soup = BeautifulSoup(response.text, "html.parser")
-            self._file_item_id = soup.find(
-                "input", {"id": "id_files_filemanager"}
-            ).attrs.get("value")
+            resp = await self.rq.get("https://vle.kegs.org.uk/user/files.php")
+            soup = BeautifulSoup(resp.text, "html.parser")
+            elem = soup.find("input", {"id": "id_files_filemanager"})
+            assert elem is not None
+            self._file_item_id = elem.attrs.get("value")
 
         return self._file_item_id
 
     @property
-    def username(self):
+    async def username(self):
         """Fetch the connected user's username"""
         if self._username is None:
-            response = self.rq.get("https://vle.kegs.org.uk/login/index.php")
-            soup = BeautifulSoup(response.text, "html.parser")
+            resp = await self.rq.get("https://vle.kegs.org.uk/login/index.php")
+            soup = BeautifulSoup(resp.text, "html.parser")
             for alert_elem in soup.find_all(attrs={"role": "alert"}):
                 alert = alert_elem.text
 
@@ -178,25 +179,26 @@ class Session:
         """Raise an error if there is no connected user"""
         assert await self.is_signed_in
 
-    def logout(self):
+    async def logout(self):
         """
         Send a logout request to KEGSNet. After this is called, the session is supposed to no longer function.
         :return: The response from KEGSNet
         """
-        response = self.rq.get(
-            "https://vle.kegs.org.uk/login/logout.php", params={"sesskey": self.sesskey}
+        resp = await self.rq.get(
+            "https://vle.kegs.org.uk/login/logout.php",
+            params={"sesskey": await self.sesskey},
         )
-        print(f"Logged out with status code {response.status_code}")
-        return response
+        print(f"Logged out with status code {resp.status_code}")
+        return resp
 
     # --- Connecting ---
-    def connect_user_by_id(self, _id: int) -> user.User:
+    async def connect_user_by_id(self, _id: int) -> user.User:
         """Get a user by ID and attach this session object to it"""
         ret = user.User(_id, _session=self)
-        ret.update_from_id()
+        await ret.update_from_id()
         return ret
 
-    def get_users(
+    async def get_users(
         self,
         _id: int | list[int] | None = None,
         idnumber: int | list[int] | None = None,
@@ -221,7 +223,7 @@ class Session:
         if not isinstance(_value, list):
             _value = [_value]
 
-        data = self.webservice(
+        data = await self.webservice(
             "core_user_get_users_by_field", field=_field, values=_value
         )
         return data
@@ -232,45 +234,47 @@ class Session:
         """
         return user.User(_session=self, **kwargs)
 
-    def connect_forum(self, _id: int) -> forum.Forum:
+    async def connect_forum(self, _id: int) -> forum.Forum:
         """Get a forum by ID and attach this session object to it"""
         ret = forum.Forum(_id, _session=self)
-        ret.update_by_id()
+        await ret.update_by_id()
         return ret
 
-    def connect_site_news(self):
-        return self.connect_forum(377)
+    async def connect_site_news(self):
+        return await self.connect_forum(377)
 
     # --- Private Files ---
-    def _file_data(self, fp: str) -> dict:
+    async def _file_data(self, fp: str) -> dict:
         """Fetch the JSON response for private files in a given directory"""
 
         # Believe or not, KegsNet does actually have some JSON endpoints!
-        return self.rq.post(
-            "https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
-            params={"action": "list"},
-            data={
-                "sesskey": self.sesskey,
-                "clientid": self.file_client_id,
-                "itemid": self.file_item_id,
-                "filepath": fp,
-            },
+        return (
+            await self.rq.post(
+                "https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
+                params={"action": "list"},
+                data={
+                    "sesskey": self.sesskey,
+                    "clientid": self.file_client_id,
+                    "itemid": self.file_item_id,
+                    "filepath": fp,
+                },
+            )
         ).json()
 
-    def files_in_dir(self, fp: str) -> list[file.File]:
+    async def files_in_dir(self, fp: str) -> list[file.File]:
         """Fetch files in a given directory"""
-        data = self._file_data(fp)["list"]
+        data = (await self._file_data(fp))["list"]
         files = []
         for file_data in data:
             files.append(file.File.from_json(file_data, self))
         return files
 
     @property
-    def files(self):
+    async def files(self):
         """Fetch the files in the root directory"""
-        return self.files_in_dir("/")
+        return await self.files_in_dir("/")
 
-    def add_filepath(
+    async def add_filepath(
         self, fp: str, data: bytes, author: str = "", _license: str = "unknown"
     ):
         """
@@ -283,9 +287,9 @@ class Session:
         """
         split = fp.split("/")
         fp = "/".join(split[:-1])
-        self.add_file(split[-1], data, author, _license, fp)
+        await self.add_file(split[-1], data, author, _license, fp)
 
-    def add_file(
+    async def add_file(
         self,
         title: str,
         data: bytes,
@@ -311,17 +315,17 @@ class Session:
         """
         # Perhaps this method should take in a File object instead of title/data/author etc
 
-        self.rq.post(
+        await self.rq.post(
             "https://vle.kegs.org.uk/repository/repository_ajax.php",
             params={"action": "upload"},
             data={
-                "sesskey": self.sesskey,
+                "sesskey": await self.sesskey,
                 "repo_id": 3,  # I'm not sure if it has to be 3
                 "title": title,
                 "author": author,
                 "license": _license,
-                "clientid": self.file_client_id,
-                "itemid": self.file_item_id,
+                "clientid": await self.file_client_id,
+                "itemid": await self.file_item_id,
                 "savepath": fp,
             },
             files={"repo_upload_file": data},
@@ -329,45 +333,49 @@ class Session:
 
         # Save changes
         if save_changes:
-            self.file_save_changes()
+            await self.file_save_changes()
 
-    def file_save_changes(self):
+    async def file_save_changes(self):
         """
         Tell kegsnet to save our changes to our files
         """
-        self.rq.post(
+        await self.rq.post(
             "https://vle.kegs.org.uk/user/files.php",
             data={
                 "returnurl": "https://vle.kegs.org.uk/user/files.php",
-                "sesskey": self.sesskey,
-                "files_filemanager": self.file_item_id,
+                "sesskey": await self.sesskey,
+                "files_filemanager": await self.file_item_id,
                 "_qf__user_files_form": 1,
                 "submitbutton": "Save changes",
             },
         )
 
     @property
-    def file_zip(self) -> bytes:
+    async def file_zip(self) -> bytes:
         """
         Returns bytes of your files as a zip archive
         """
-        url = self.rq.post(
-            "https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
-            params={"action": "downloaddir"},
-            data={
-                "sesskey": self.sesskey,
-                "client_id": self.file_client_id,
-                "filepath": "/",
-                "itemid": self.file_item_id,
-            },
+        url = (
+            await self.rq.post(
+                "https://vle.kegs.org.uk/repository/draftfiles_ajax.php",
+                params={"action": "downloaddir"},
+                data={
+                    "sesskey": await self.sesskey,
+                    "client_id": await self.file_client_id,
+                    "filepath": "/",
+                    "itemid": await self.file_item_id,
+                },
+            )
         ).json()["fileurl"]
 
-        return self.rq.get(url).content
+        return (await self.rq.get(url)).content
 
     # --- Blogs ---
     def _find_blog_entires(self, soup: BeautifulSoup) -> list[blog.Entry]:
         entries = []
-        for div in soup.find("div", {"role": "main"}).find_all("div"):
+        main_div = soup.find("div", {"role": "main"})
+        assert main_div is not None
+        for div in main_div.find_all("div"):
             raw_id = div.attrs.get("id", "")
 
             if re.match(r"b\d*", raw_id):
@@ -376,43 +384,43 @@ class Session:
 
         return entries
 
-    def connect_user_blog_entries(
-        self, userid: int = None, *, limit: int = 10, offset: int = 0
+    async def connect_user_blog_entries(
+        self, userid: Optional[int] = None, *, limit: int = 10, offset: int = 0
     ) -> list[blog.Entry]:
         warnings.warn(
             "This will be deprecated soon. Try to use connect_blog_entries instead"
         )
         if userid is None:
-            userid = self.user_id
+            userid = await self.user_id
 
         entries = []
         for page, _ in zip(*commons.generate_page_range(limit, offset, 10, 0)):
-            text = self.rq.get(
+            resp = await self.rq.get(
                 "https://vle.kegs.org.uk/blog/index.php",
                 params={"blogpage": page, "userid": userid},
-            ).text
-            soup = BeautifulSoup(text, "html.parser")
+            )
+            soup = BeautifulSoup(resp.text, "html.parser")
             entries += self._find_blog_entires(soup)
 
         return entries
 
-    def connect_blog_entries(
+    async def connect_blog_entries(
         self,
         *,
         limit: int = 10,
         offset: int = 0,
         # search filters
-        _tag: tag.Tag = None,
-        _course: course.Course = None,
-        _user: user.User = None,
-        tagname: str = None,
-        tagid: int = None,
-        userid: int = None,
-        cmid: int = None,  # idk what this one is
-        entryid: int = None,
-        groupid: int = None,
-        courseid: int = None,
-        search: str = None,
+        _tag: Optional[tag.Tag] = None,
+        _course: Optional[course.Course] = None,
+        _user: Optional[user.User] = None,
+        tagname: Optional[str] = None,
+        tagid: Optional[int] = None,
+        userid: Optional[int] = None,
+        cmid: Optional[int] = None,  # idk what this one is
+        entryid: Optional[int] = None,
+        groupid: Optional[int] = None,
+        courseid: Optional[int] = None,
+        search: Optional[str] = None,
     ):
         if offset != 0:
             warnings.warn(
@@ -442,7 +450,7 @@ class Session:
         add_filter("courseid", courseid)
         add_filter("search", search)
 
-        data = self.webservice(
+        data = await self.webservice(
             "core_blog_get_entries", page=0, perpage=limit, filters=filters
         )
 
@@ -450,30 +458,30 @@ class Session:
             blog.Entry.from_json(entry_data, self) for entry_data in data["entries"]
         ]
 
-    def connect_blog_entry_by_id(self, _id: int):
+    async def connect_blog_entry_by_id(self, _id: int):
         entry = blog.Entry(id=_id, _session=self)
-        entry.update_from_id()
+        await entry.update_from_id()
         return entry
 
     # --- Tags ---
 
-    def connect_tag_by_name(self, name: str) -> tag.Tag:
+    async def connect_tag_by_name(self, name: str) -> tag.Tag:
         _tag = tag.Tag(name, _session=self)
-        _tag.update()
+        await _tag.update()
         return _tag
 
-    def connect_tag_by_id(self, _id: int) -> tag.Tag:
+    async def connect_tag_by_id(self, _id: int) -> tag.Tag:
         _tag = tag.Tag(id=_id, _session=self)
-        _tag.update()
+        await _tag.update()
         return _tag
 
     # --- Calendar ---
 
-    def connect_calendar(
+    async def connect_calendar(
         self,
         view_type: Literal["month", "day", "upcoming"] = "day",
-        _time: int | float | datetime = None,
-        _course: int | str | course.Course = None,
+        _time: int | float | datetime | None = None,
+        _course: int | str | course.Course | None = None,
     ):
         if isinstance(_time, datetime):
             _time = _time.timestamp()
@@ -481,7 +489,7 @@ class Session:
         if isinstance(_course, course.Course):
             _course = _course.id
 
-        resp = self.rq.get(
+        resp = await self.rq.get(
             "https://vle.kegs.org.uk/calendar/view.php",
             params={"view": view_type, "time": _time, "course": _course},
         )
@@ -493,6 +501,7 @@ class Session:
         if view_type == "month":
             ...
         elif view_type in ("day", "upcoming"):
+            assert div is not None
             evlist = div.find("div", {"class": "eventlist"})
             for event_div in evlist.find_all("div", {"data-type": "event"}):
                 cal_event = calendar.Event(_sess=self)
@@ -511,8 +520,9 @@ class Session:
                     row_text = row.text.strip()
                     match row_type:
                         case "When":
-                            cal_event.date = dateparser.parse(row_text)
-
+                            _date = dateparser.parse(row_text)
+                            assert _date is not None
+                            cal_event.date = _date
                         case "Event type":
                             cal_event.type = row_text
 
@@ -531,8 +541,8 @@ class Session:
         return ret
 
     # -- Courses -- #
-    def connect_recent_courses(self, limit: int = 10, offset: int = 0):
-        data = self.webservice(
+    async def connect_recent_courses(self, limit: int = 10, offset: int = 0):
+        data = await self.webservice(
             "core_course_get_recent_courses", limit=limit, offset=offset
         )
         return [course.Course.from_json(course_data) for course_data in data]
@@ -574,19 +584,19 @@ class Session:
 
         return data["data"]
 
-    def search_courses(self, query: str):
-        data = self.webservice(
+    async def search_courses(self, query: str):
+        data = await self.webservice(
             "core_course_search_courses", criterianame="tagid", criteriavalue=query
         )
         return data
 
-    def connect_enrolled_courses(
+    async def connect_enrolled_courses(
         self,
         classification: Literal["future", "inprogress", "past"] = "inprogress",
         limit: int = 9999,
         offset: int = 0,
     ):
-        data = self.webservice(
+        data = await self.webservice(
             "core_course_get_enrolled_courses_by_timeline_classification",
             classification=classification,
             limit=limit,
