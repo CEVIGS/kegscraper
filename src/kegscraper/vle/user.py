@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dateparser
 from bs4 import BeautifulSoup
-from typing import Final
+from typing_extensions import Final, Optional
 from dataclasses import dataclass, field
 import warnings
 from datetime import datetime
@@ -16,25 +16,25 @@ FORBIDDEN_USER: Final[str] = "The details of this user are not available to you"
 
 @dataclass
 class User:
-    id: int = None
+    _session: session.Session = field(repr=False)
 
-    name: str = None
-    email: str = field(repr=False, default=None)
-    image_url: str = field(repr=False, default=None)
+    id: Optional[int] = None
 
-    country: str = field(repr=False, default=None)
-    city: str = field(repr=False, default=None)
-    web_page: str = field(repr=False, default=None)
+    name: Optional[str] = None
+    email: Optional[str] = field(repr=False, default=None)
+    image_url: Optional[str] = field(repr=False, default=None)
 
-    interests: list = field(repr=False, default=None)
-    courses: list = field(repr=False, default=None)
+    country: Optional[str] = field(repr=False, default=None)
+    city: Optional[str] = field(repr=False, default=None)
+    web_page: Optional[str] = field(repr=False, default=None)
 
-    first_access: datetime = field(repr=False, default=None)
-    last_access: datetime = field(repr=False, default=None)
+    interests: Optional[list] = field(repr=False, default=None)
+    courses: Optional[list] = field(repr=False, default=None)
 
-    description: str = field(repr=False, default=None)
+    first_access: Optional[datetime] = field(repr=False, default=None)
+    last_access: Optional[datetime] = field(repr=False, default=None)
 
-    _session: session.Session = field(repr=False, default=None)
+    description: Optional[str] = field(repr=False, default=None)
 
     flags: list[str] = field(repr=False, default_factory=list)
 
@@ -43,16 +43,21 @@ class User:
         if self.image_url is None:
             return None
 
-        return self.image_url == "https://vle.kegs.org.uk/theme/image.php/trema/core/1585328846/u/f1"
+        return (
+            self.image_url
+            == "https://vle.kegs.org.uk/theme/image.php/trema/core/1585328846/u/f1"
+        )
 
     @property
-    def profile_image(self) -> bytes:
-        return self._session.rq.get(self.image_url).content
+    async def profile_image(self) -> bytes:
+        assert self.image_url is not None, "Need image url to get image!"
+        return (await self._session.rq.get(self.image_url)).content
 
-    def update_from_id(self):
-        response = self._session.rq.get("https://vle.kegs.org.uk/user/profile.php",
-                                        params={"id": self.id})
-        text = response.text
+    async def update_from_id(self):
+        resp = await self._session.rq.get(
+            "https://vle.kegs.org.uk/user/profile.php", params={"id": self.id}
+        )
+        text = resp.text
         soup = BeautifulSoup(text, "html.parser")
 
         self.flags = []
@@ -71,12 +76,17 @@ class User:
 
         else:
             # Get user's name
-            self.name = str(soup.find("div", {"class": "page-header-headings"}).contents[0].text)
+            elem = soup.find("div", {"class": "page-header-headings"})
+            assert elem is not None
+            self.name = str(elem.contents[0].text)
 
             # Get user image
-            self.image_url = soup.find_all("img", {"class": "userpicture"})[1].get("src")
+            self.image_url = soup.find_all("img", {"class": "userpicture"})[1].get(
+                "src"
+            )
 
             user_profile = soup.find("div", {"class": "userprofile"})
+            assert user_profile is not None
             self.description = user_profile.find("div", {"class": "description"})
 
             categories = user_profile.find_all("section", {"class", "node_category"})
@@ -90,7 +100,9 @@ class User:
                     user_details = list(category.children)[1]
 
                     # This is an unordered list containing the Email, Country, City and Interest
-                    content_nodes = user_details.find_all("li", {"class", "contentnode"})
+                    content_nodes = user_details.find_all(
+                        "li", {"class", "contentnode"}
+                    )
 
                     for li in content_nodes:
                         dl = li.find("dl")
@@ -125,8 +137,9 @@ class User:
 
                 elif category_name == "Course details":
                     for anchor in category.find_all("a"):
-                        courses.append((anchor.get("href").split('=')[-1],
-                                        anchor.contents[0]))
+                        courses.append(
+                            (anchor.get("href").split("=")[-1], anchor.contents[0])
+                        )
                     if courses:
                         self.courses = courses
 
@@ -139,7 +152,7 @@ class User:
                 elif category_name == "Login activity":
                     for i, activity in enumerate(category.find_all("dd")):
                         date_str = activity.contents[0]
-                        date_str = date_str[:date_str.find('(')]
+                        date_str = date_str[: date_str.find("(")]
 
                         if i == 0:
                             self.first_access = dateparser.parse(date_str)
