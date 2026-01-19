@@ -4,7 +4,8 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
-from typing_extensions import Any, Self
+import bs4
+from typing_extensions import Any, Self, Optional
 
 import dateparser
 from bs4 import PageElement, BeautifulSoup
@@ -17,24 +18,25 @@ from ..util import commons, exceptions
 class External:
     """Represents an external blog or an external blog entry"""
 
-    url: str = None
-    name: str = None
-    id: int = None
+    _session: session.Session = field(repr=False)
 
-    _session: session.Session = field(repr=False, default=None)
+    url: Optional[str] = None
+    name: Optional[str] = None
+    id: Optional[int] = None
 
 
 @dataclass
 class Comment:
-    id: int = None
-    content: BeautifulSoup = field(repr=False, default=None)
-    format: str = "0"  # Idk what this is
-    created: datetime = None
-    author: user.User = None
+    _session: session.Session = field(repr=False)
+
+    id: Optional[int] = None
+    content: Optional[BeautifulSoup] = field(repr=False, default=None)
+    format: Optional[str] = "0"  # Idk what this is
+    created: Optional[datetime] = None
+    author: Optional[user.User] = None
     deletable: bool = False
 
-    _entry: Entry = field(repr=False, default=None)
-    _session: session.Session = field(repr=False, default=None)
+    _entry: Optional[Entry] = field(repr=False, default=None)
 
     @classmethod
     def from_json(
@@ -89,31 +91,31 @@ class Comment:
 
 @dataclass
 class Entry:
-    id: int = None
-    subject: str = None
-    author: user.User = None
-    date_created: datetime = None
-    date_modified: datetime = None
-    publishstate: str = None
-    content: PageElement | Any = field(repr=False, default=None)
+    _session: session.Session = field(repr=False)
 
-    attachments: list[file.File] = None
+    id: Optional[int] = None
+    subject: Optional[str] = None
+    author: Optional[user.User] = None
+    date_created: Optional[datetime] = None
+    date_modified: Optional[datetime] = None
+    publishstate: Optional[str] = None
+    content: PageElement | Any | None = field(repr=False, default=None)
+
+    attachments: list[file.File] | None = None
     images: PageElement | Any = field(repr=False, default=None)
-    tags: list[tag.Tag] = None
+    tags: list[tag.Tag] | None = None
 
-    external_blog: External = None
-    external_blog_entry: External = None
+    external_blog: Optional[External] = None
+    external_blog_entry: Optional[External] = None
 
-    context_id: int = None
-
-    _session: session.Session = field(repr=False, default=None)
+    context_id: Optional[int] = None
 
     @property
     def url(self):
         return f"https://vle.kegs.org.uk/blog/index.php?entryid={self.id}"
 
     @classmethod
-    def from_json(cls, data: dict[str | Any], _sess: session.Session) -> Self:
+    def from_json(cls, data: dict[str, Any], _sess: session.Session) -> Self:
         if data["module"] == "blog_external":
             ext_be = External(url=data["uniquehash"], _session=_sess)
             ext = External(id=data["moduleid"], _session=_sess)
@@ -138,20 +140,21 @@ class Entry:
             external_blog_entry=ext_be,
         )
 
-    def update_from_id(self):
-        text = self._session.rq.get(
+    async def update_from_id(self):
+        resp = await self._session.rq.get(
             "https://vle.kegs.org.uk/blog/index.php", params={"entryid": self.id}
-        ).text
-        soup = BeautifulSoup(text, "html.parser")
+        )
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-        self.update_from_div(soup.find("div", {"id": f"b{self.id}"}))
-
-    def update_from_div(self, div: PageElement):
+        div = soup.find("div", {"id": f"b{self.id}"})
         if div is None:
             raise exceptions.NotFound(
                 f"BlogEntry #{self.id}, ({self}) does not seem to exist. It may have been deleted, or may never have existed, or you may be logged out."
             )
 
+        self.update_from_div(div)
+
+    def update_from_div(self, div: bs4.Tag):
         header = div.find("div", {"class": "row header clearfix"})
         main = div.find("div", {"class": "row maincontent clearfix"})
 
@@ -162,6 +165,7 @@ class Entry:
 
         self.id = int(div["id"][1:])
 
+        assert header is not None
         self.subject = header.find("div", {"class": "subject"}).text
 
         author_anchor = header.find("div", {"class": "author"}).find("a")
@@ -182,13 +186,15 @@ class Entry:
             external_anchor = external_div.find("a")
             if external_anchor:
                 self.external_blog = External(
-                    external_anchor["href"],
-                    external_anchor.text,
+                    url=external_anchor["href"],
+                    name=external_anchor.text,
                     _session=self._session,
                 )
 
         # Get actual blog content
-        audience = main.find("div", {"class": "audience"}).text.strip()
+        assert main is not None
+        div = main.find("div", {"class": "audience"})
+        audience = div.text.strip()
         self.publishstate = {"Anyone on this site": "site"}.get(audience)
 
         self.images = main.find("div", {"class": "attachedimages"})
@@ -202,8 +208,8 @@ class Entry:
             external_anchor = external_div.find("a")
             if external_anchor:
                 self.external_blog_entry = External(
-                    external_anchor["href"],
-                    external_anchor.text,
+                    url=external_anchor["href"],
+                    name=external_anchor.text,
                     _session=self._session,
                 )
 
@@ -220,7 +226,7 @@ class Entry:
                 parse = urlparse(tag_a["href"])
                 qparse = parse_qs(parse.query)
 
-                self.tags.append(tag.Tag(qparse["tag"][0], _session=self._session))
+                self.tags.append(tag.Tag(name=qparse["tag"][0], _session=self._session))
 
         mdl = main.find("div", {"class": "mdl-left"})
         njs_url = mdl.find("a", {"class": "showcommentsnonjs"})["href"]
@@ -228,9 +234,9 @@ class Entry:
         qparse = parse_qs(parse.query)
         self.context_id = int(qparse["comment_context"][0])
 
-    def get_comments(self, *, limit: int = 1, offset: int = 0) -> list[Comment]:
+    async def get_comments(self, *, limit: int = 1, offset: int = 0) -> list[Comment]:
         if self.context_id is None:
-            self.update_from_id()
+            await self.update_from_id()
 
         data_lst = []
         for page, _ in zip(
@@ -238,33 +244,35 @@ class Entry:
                 limit, offset, items_per_page=999, starting_page=0
             )
         ):
-            data_lst += self._session.rq.post(
-                "https://vle.kegs.org.uk/comment/comment_ajax.php",
-                data={
-                    "sesskey": self._session.sesskey,
-                    "action": "get",
-                    "client_id": self._session.file_client_id,
-                    "itemid": self.id,
-                    "area": "format_blog",
-                    "courseid": "1",
-                    "contextid": self.context_id,
-                    "component": "blog",
-                    "page": page,
-                },
+            data_lst += (
+                await self._session.rq.post(
+                    "https://vle.kegs.org.uk/comment/comment_ajax.php",
+                    data={
+                        "sesskey": await self._session.sesskey,
+                        "action": "get",
+                        "client_id": await self._session.file_client_id,
+                        "itemid": self.id,
+                        "area": "format_blog",
+                        "courseid": "1",
+                        "contextid": self.context_id,
+                        "component": "blog",
+                        "page": page,
+                    },
+                )
             ).json()["list"]
 
         return [Comment.from_json(data, self, self._session) for data in data_lst]
 
-    def post_comment(self, content: str) -> Comment:
+    async def post_comment(self, content: str) -> Comment:
         if self.context_id is None:
-            self.update_from_id()
+            await self.update_from_id()
 
-        response = self._session.rq.post(
+        resp = await self._session.rq.post(
             "https://vle.kegs.org.uk/comment/comment_ajax.php",
             data={
-                "sesskey": self._session.sesskey,
+                "sesskey": await self._session.sesskey,
                 "action": "add",
-                "client_id": self._session.file_client_id,
+                "client_id": await self._session.file_client_id,
                 "itemid": self.id,
                 "area": "format_blog",
                 "courseid": 1,
@@ -274,5 +282,5 @@ class Entry:
             },
         )
 
-        ret = Comment.from_json(response.json(), self, self._session)
+        ret = Comment.from_json(resp.json(), self, self._session)
         return ret
