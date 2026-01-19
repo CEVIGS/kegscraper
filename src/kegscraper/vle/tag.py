@@ -7,7 +7,8 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass, field
 from urllib.parse import urlparse, parse_qs
-from typing_extensions import Self
+import httpx
+from typing_extensions import Self, Optional
 
 import dateparser
 import requests
@@ -18,18 +19,18 @@ from ..util import commons
 
 @dataclass
 class Tag:
-    name: str = None
-    exists: bool = None
+    _session: session.Session = field(repr=False)
 
-    description: PageElement = field(default=None, repr=False)
+    name: Optional[str] = None
+    exists: Optional[bool] = None
+
+    description: Optional[PageElement] = field(default=None, repr=False)
     related_tags: list[Tag] = field(default_factory=list)
 
-    id: int = None
-    flagged_inappropriate: bool = field(repr=False, default=False)
+    id: Optional[int] = None
+    flagged_inappropriate: Optional[bool] = field(repr=False, default=False)
 
-    item_id: str = None
-
-    _session: session.Session = field(repr=False, default=None)
+    item_id: Optional[str] = None
 
     @classmethod
     def from_json(cls, data: dict, _sess: session.Session) -> Self:
@@ -53,19 +54,20 @@ class Tag:
             warnings.warn(f"Could not infer a Tag id for {self}")
             return ""
 
-    def _update_from_response(self, response: requests.Response):
+    def _update_from_response(self, response: httpx.Response):
         self.exists = response.url != "https://vle.kegs.org.uk/tag/search.php"
         if self.exists:
             soup = BeautifulSoup(response.text, "html.parser")
             main = soup.find("div", {"role": "main"})
 
+            assert main is not None
             self.name = main.find("h2").text
 
             mng_box = main.find("div", {"class": "tag-management-box"})
             tedit = mng_box.find("a", {"class": "edittag"})
             href = tedit.attrs.get("href", "")
             q_parse = parse_qs(urlparse(href).query)
-            self.id = int(q_parse.get("id")[0])
+            self.id = int(q_parse["id"][0])
 
             # get desc
             self.description = main.find("div", {"class": "tag-description"})
@@ -83,21 +85,21 @@ class Tag:
                     q_parse = parse_qs(parsed.query)
                     related_tag_name = q_parse["tag"][0]
                     self.related_tags.append(
-                        Tag(related_tag_name, _session=self._session)
+                        Tag(name=related_tag_name, _session=self._session)
                     )
 
-    def update(self):
+    async def update(self):
         """
         Update by name or id
         """
-        response = self._session.rq.get(self.url)
-        self._update_from_response(response)
+        resp = await self._session.rq.get(self.url)
+        self._update_from_response(resp)
 
-    def connect_interested_users(self, limit: int = 5, offset: int = 0):
+    async def connect_interested_users(self, limit: int = 5, offset: int = 0):
         users = []
 
         for page in commons.generate_page_range(limit, offset, 5, 0)[0]:
-            data = self._session.webservice(
+            data = await self._session.webservice(
                 "core_tag_get_tagindex",
                 tagindex={
                     "tc": 1,
@@ -132,7 +134,7 @@ class Tag:
 
         return users
 
-    def connect_tagged_blog_entries(self, limit: int = 5, offset: int = 0):
+    async def connect_tagged_blog_entries(self, limit: int = 5, offset: int = 0):
         entries = []
 
         for page in commons.generate_page_range(limit, offset, 5, 0)[0]:
@@ -163,8 +165,11 @@ class Tag:
                 author_name = split[0].strip()
                 date = dateparser.parse(",".join(split[1:]))
 
-                author = user.User(id=uid, name=author_name, image_url=src)
+                author = user.User(
+                    id=uid, name=author_name, image_url=src, _session=self._session
+                )
 
+                assert date is not None
                 entries.append(
                     blog.Entry(
                         id=entry_id,
@@ -177,33 +182,40 @@ class Tag:
 
         return entries
 
-    def edit(
+    async def edit(
         self,
-        new_description: str | PageElement = None,
-        related_tags: list[Tag | str] = None,
+        new_description: str | PageElement | None = None,
+        related_tags: list[Tag | str] | None = None,
     ):
         if new_description is None:
             new_description = self.description
         if related_tags is None:
-            related_tags = self.related_tags
+            related_tags = (
+                self.related_tags
+            )  # note sure why type checker is complaining. # type: ignore
 
         if not isinstance(new_description, str):
             if new_description is not None:
-                new_description = new_description.prettify()
+                new_description = new_description.prettify()  # type: ignore
             # else:
             #     new_description = ''
 
-        related_tags = list(
-            map(lambda x: x if isinstance(x, str) else x.name, related_tags)
+        related_tags = (
+            list(  # note sure why type checker is complaining. # type: ignore
+                map(
+                    lambda x: x if isinstance(x, str) else x.name, related_tags
+                )  # note sure why type checker is complaining. # type: ignore
+            )
         )
 
-        response = self._session.rq.get(
+        resp = await self._session.rq.get(
             "https://vle.kegs.org.uk/tag/edit.php", params={"id": self.id}
         )
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(resp.text, "html.parser")
 
         # it appears that order matters??? Not sure
+        assert related_tags is not None
         data = (
             [
                 ("id", self.id),
@@ -225,4 +237,6 @@ class Tag:
             ]
         )
 
-        return self._session.rq.post("https://vle.kegs.org.uk/tag/edit.php", data=data)
+        return await self._session.rq.post(
+            "https://vle.kegs.org.uk/tag/edit.php", data=data
+        )
