@@ -40,12 +40,13 @@ class Session:
     _user: user.User | None = None
     _username: str | None = None
 
-    def __await__(self):
-        async def inner():
-            await self.assert_login()
-            return self
+    async def __aenter__(self):
+        await self.assert_login()
+        return self
 
-        return inner().__await__()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.logout()
+        return False
 
     # --- Session/auth related methods ---
     @property
@@ -178,16 +179,17 @@ class Session:
         """Raise an error if there is no connected user"""
         assert await self.is_signed_in
 
-    def logout(self):
+    async def logout(self):
         """
         Send a logout request to KEGSNet. After this is called, the session is supposed to no longer function.
         :return: The response from KEGSNet
         """
-        response = self.rq.get(
-            "https://vle.kegs.org.uk/login/logout.php", params={"sesskey": self.sesskey}
+        resp = await self.rq.get(
+            "https://vle.kegs.org.uk/login/logout.php",
+            params={"sesskey": await self.sesskey},
         )
-        print(f"Logged out with status code {response.status_code}")
-        return response
+        print(f"Logged out with status code {resp.status_code}")
+        return resp
 
     # --- Connecting ---
     def connect_user_by_id(self, _id: int) -> user.User:
@@ -617,7 +619,7 @@ async def login(username: str, password: str) -> Session:
 
     await rq.post("https://vle.kegs.org.uk/login/index.php", data=inputs)
 
-    return await Session(rq=rq)
+    return Session(rq=rq)
 
 
 async def login_by_moodle(moodle_cookie: str) -> Session:
@@ -631,7 +633,7 @@ async def login_by_moodle(moodle_cookie: str) -> Session:
     )
 
     try:
-        return await Session(rq=rq)
+        return Session(rq=rq)
     except requests.exceptions.TooManyRedirects:
         raise ValueError(
             f"The moodle cookie {moodle_cookie!r} may be invalid/outdated."
